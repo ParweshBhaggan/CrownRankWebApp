@@ -1,3 +1,6 @@
+using CrownRank.Application.Abstractions;
+using CrownRank.Infrastructure.Images;
+using CrownRank.Infrastructure.Payments;
 using CrownRank.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -15,7 +18,10 @@ public static class DependencyInjection
             ?? throw new InvalidOperationException("Connection string 'Database' is missing.");
 
         services.AddDbContext<CrownRankDbContext>(options => options.UseNpgsql(connectionString));
+        services.Configure<ProfileImageOptions>(configuration.GetSection(ProfileImageOptions.SectionName));
+        services.AddScoped<ICreatorRepository, CreatorRepository>();
+        services.AddScoped<IProfileImageService, LocalProfileImageService>();
+        services.AddScoped<IPaymentGateway, DevelopmentPaymentGateway>();
         return services;
     }
 }
-

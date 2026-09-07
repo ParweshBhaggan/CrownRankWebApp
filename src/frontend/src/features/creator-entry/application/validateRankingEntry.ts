@@ -1,7 +1,7 @@
 import type { RankingEntryDraft, RankingEntryValidationErrors } from '../domain/rankingEntry'
 
 const usernamePattern = /^[a-zA-Z0-9._-]{2,40}$/
-const acceptedImageTypes = new Set(['image/jpeg', 'image/png', 'image/webp'])
+const acceptedImageTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/bmp'])
 
 export function validateRankingEntry(draft: RankingEntryDraft): RankingEntryValidationErrors {
   const errors: RankingEntryValidationErrors = {}
@@ -13,6 +13,6 @@ export function validateRankingEntry(draft: RankingEntryDraft): RankingEntryVali
     try { const url = new URL(link.url); return url.protocol === 'https:' && Boolean(url.hostname) } catch { return false }
   })
   if (!linksAreValid) errors.socialLinks = 'Add at least one complete HTTPS social profile URL.'
-  if (draft.profileImage && (!acceptedImageTypes.has(draft.profileImage.type) || draft.profileImage.size > 5 * 1024 * 1024)) errors.profileImage = 'Choose a JPG, PNG, or WebP image up to 5 MB.'
+  if (draft.profileImage && (!acceptedImageTypes.has(draft.profileImage.type) || draft.profileImage.size > 8 * 1024 * 1024)) errors.profileImage = 'Choose a JPG, PNG, WebP, GIF, or BMP image up to 8 MB.'
   return errors
 }

@@ -1,4 +1,4 @@
-import { DummyLeaderboardRepository } from '../../features/leaderboard/data/DummyLeaderboardRepository'
+import { ApiLeaderboardRepository } from '../../features/leaderboard/data/ApiLeaderboardRepository'
 import { MockPaymentGateway } from '../../features/payments/data/MockPaymentGateway'
 
-export const appServices = { leaderboardRepository: new DummyLeaderboardRepository(), paymentGateway: new MockPaymentGateway() } as const
+export const appServices = { leaderboardRepository: new ApiLeaderboardRepository(), paymentGateway: new MockPaymentGateway() } as const

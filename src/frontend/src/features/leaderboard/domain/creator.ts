@@ -13,7 +13,6 @@ export interface Creator {
   readonly lastName: string
   readonly displayName: string
   readonly category: CreatorCategory
-  readonly bio: string
   readonly location?: string
   readonly imageUrl: string
   readonly socialProfiles: readonly SocialProfile[]
@@ -38,4 +37,5 @@ export interface RankedCreator extends Creator {
 
 export interface LeaderboardRepository {
   getAll(): Promise<readonly Creator[]>
+  getDaily(date: string): Promise<readonly Creator[]>
 }
