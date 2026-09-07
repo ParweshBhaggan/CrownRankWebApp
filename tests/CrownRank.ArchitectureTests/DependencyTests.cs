@@ -1,4 +1,6 @@
+using CrownRank.Domain.Creators;
 using NetArchTest.Rules;
+using Xunit;
 
 namespace CrownRank.ArchitectureTests;
 
@@ -7,7 +9,7 @@ public sealed class DependencyTests
     [Fact]
     public void Domain_ShouldNotDependOnApplication()
     {
-        var result = Types.InAssembly(typeof(Domain.Creators.Creator).Assembly)
+        var result = Types.InAssembly(typeof(Creator).Assembly)
             .ShouldNot()
             .HaveDependencyOn("CrownRank.Application")
             .GetResult();
@@ -15,4 +17,3 @@ public sealed class DependencyTests
         Assert.True(result.IsSuccessful);
     }
 }
-
