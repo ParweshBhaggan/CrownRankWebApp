@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
-import type { SocialPlatform } from '../../leaderboard/domain/creator'
+import { creatorCategories, creatorCategoryLabels, type CreatorCategory, type SocialPlatform } from '../../leaderboard/domain/creator'
 import type { PaymentGateway } from '../../payments/domain/payment'
 import { formatCurrency } from '../../../shared/format/currency'
 import { validateRankingEntry } from '../application/validateRankingEntry'
@@ -17,7 +17,10 @@ const createSocialLink = (): SocialLinkInput => ({ id: crypto.randomUUID(), plat
 
 export function EnterRankingDialog({ isOpen, paymentGateway, onClose }: Props) {
   const dialogRef = useRef<HTMLDialogElement>(null)
+  const [firstName, setFirstName] = useState('')
+  const [lastName, setLastName] = useState('')
   const [username, setUsername] = useState('')
+  const [category, setCategory] = useState<CreatorCategory>('influencer')
   const [amount, setAmount] = useState('25')
   const [socialLinks, setSocialLinks] = useState<SocialLinkInput[]>([createSocialLink()])
   const [profileImage, setProfileImage] = useState<File>()
@@ -48,7 +51,7 @@ export function EnterRankingDialog({ isOpen, paymentGateway, onClose }: Props) {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const contributionCents = Math.round(Number(amount) * 100)
-    const validationErrors = validateRankingEntry({ username, socialLinks, profileImage, contributionCents })
+    const validationErrors = validateRankingEntry({ firstName, lastName, username, category, socialLinks, profileImage, contributionCents })
     if (!acceptedTerms) validationErrors.terms = 'Confirm the declaration before continuing.'
     setErrors(validationErrors)
     if (Object.keys(validationErrors).length > 0) return
@@ -57,7 +60,7 @@ export function EnterRankingDialog({ isOpen, paymentGateway, onClose }: Props) {
     try {
       await paymentGateway.createCheckout({
         referenceId: crypto.randomUUID(), purpose: 'ranking-entry', money: { amountCents: contributionCents, currency: 'USD' },
-        successUrl: window.location.origin, cancelUrl: window.location.href, metadata: { username: username.trim() },
+        successUrl: window.location.origin, cancelUrl: window.location.href, metadata: { username: username.trim(), firstName: firstName.trim(), lastName: lastName.trim(), category },
       })
       setCheckoutReady(true)
     } finally { setIsSubmitting(false) }
@@ -74,7 +77,12 @@ export function EnterRankingDialog({ isOpen, paymentGateway, onClose }: Props) {
             <header className="dialog-heading"><p className="eyebrow">Enter the ranking</p><h2>Put your name on the board.</h2><p>No account needed. Choose your amount, add your creator profile, and continue to secure checkout.</p></header>
             <div className="form-layout">
               <div className="form-main">
+                <div className="field-grid">
+                  <div className="field-group"><label htmlFor="first-name">First name</label><input id="first-name" value={firstName} onChange={(event) => setFirstName(event.target.value)} autoComplete="given-name" />{errors.firstName && <p className="field-error">{errors.firstName}</p>}</div>
+                  <div className="field-group"><label htmlFor="last-name">Last name</label><input id="last-name" value={lastName} onChange={(event) => setLastName(event.target.value)} autoComplete="family-name" />{errors.lastName && <p className="field-error">{errors.lastName}</p>}</div>
+                </div>
                 <div className="field-group"><label htmlFor="username">Creator username</label><div className="input-prefix"><span>@</span><input id="username" value={username} onChange={(event) => setUsername(event.target.value)} placeholder="yourhandle" autoComplete="username" aria-describedby={errors.username ? 'username-error' : undefined} /></div>{errors.username && <p className="field-error" id="username-error">{errors.username}</p>}</div>
+                <div className="field-group"><label htmlFor="category">Creator category</label><select id="category" value={category} onChange={(event) => setCategory(event.target.value as CreatorCategory)}>{creatorCategories.map((value) => <option key={value} value={value}>{creatorCategoryLabels[value]}</option>)}</select><p className="field-hint">Choose the category that best represents your primary content.</p></div>
                 <fieldset className="field-group"><legend>Social profiles</legend><p className="field-hint">At least one public creator profile is required.</p><div className="social-fields">{socialLinks.map((link, index) => <div className="social-row" key={link.id}><select aria-label={`Platform ${index + 1}`} value={link.platform} onChange={(event) => updateSocialLink(link.id, { platform: event.target.value as SocialPlatform })}>{platforms.map((platform) => <option key={platform.value} value={platform.value}>{platform.label}</option>)}</select><input type="url" aria-label={`Social profile URL ${index + 1}`} value={link.url} onChange={(event) => updateSocialLink(link.id, { url: event.target.value })} placeholder="https://..." inputMode="url" />{socialLinks.length > 1 && <button className="remove-button" type="button" aria-label={`Remove social profile ${index + 1}`} onClick={() => setSocialLinks((current) => current.filter((item) => item.id !== link.id))}>×</button>}</div>)}</div>{socialLinks.length < 5 && <button className="text-button" type="button" onClick={() => setSocialLinks((current) => [...current, createSocialLink()])}>+ Add another profile</button>}{errors.socialLinks && <p className="field-error">{errors.socialLinks}</p>}</fieldset>
                 <div className="field-group"><label htmlFor="profile-image">Profile image <span className="optional">Optional</span></label><label className="upload-field" htmlFor="profile-image">{previewUrl ? <img src={previewUrl} alt="Selected profile preview" /> : <span className="upload-icon">↥</span>}<span><strong>{profileImage?.name ?? 'Choose an image'}</strong><small>JPG, PNG or WebP · Max 5 MB</small></span></label><input className="visually-hidden" id="profile-image" type="file" accept="image/jpeg,image/png,image/webp" onChange={handleImageChange} />{errors.profileImage && <p className="field-error">{errors.profileImage}</p>}</div>
               </div>

@@ -9,12 +9,26 @@ export interface SocialProfile {
 export interface Creator {
   readonly id: string
   readonly username: string
+  readonly firstName: string
+  readonly lastName: string
   readonly displayName: string
+  readonly category: CreatorCategory
+  readonly bio: string
+  readonly location?: string
   readonly imageUrl: string
   readonly socialProfiles: readonly SocialProfile[]
   readonly totalContributedCents: number
-  readonly supporterCount: number
+  readonly dailyContributedCents: number
   readonly joinedAt: string
+}
+
+export const creatorCategories = ['streamer', 'gaming', 'influencer', 'adult-entertainment', 'beauty-fashion', 'fitness-wellness', 'music', 'podcasting', 'education', 'comedy', 'art-design', 'food', 'travel', 'technology', 'business', 'other'] as const
+export type CreatorCategory = typeof creatorCategories[number]
+export const creatorCategoryLabels: Record<CreatorCategory, string> = {
+  streamer: 'Streamer', gaming: 'Gaming', influencer: 'Influencer', 'adult-entertainment': 'Adult entertainment',
+  'beauty-fashion': 'Beauty & fashion', 'fitness-wellness': 'Fitness & wellness', music: 'Music', podcasting: 'Podcasting',
+  education: 'Education', comedy: 'Comedy', 'art-design': 'Art & design', food: 'Food', travel: 'Travel',
+  technology: 'Technology', business: 'Business & finance', other: 'Other',
 }
 
 export interface RankedCreator extends Creator {
@@ -25,4 +39,3 @@ export interface RankedCreator extends Creator {
 export interface LeaderboardRepository {
   getAll(): Promise<readonly Creator[]>
 }
-
