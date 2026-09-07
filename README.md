@@ -1,8 +1,8 @@
 # CrownRank
 
-CrownRank is a fan-powered leaderboard for content creators. A creator can enter with a username, at least one social profile, a photo, and a $100 payment—without creating an account. Anyone can later contribute another payment to boost that creator's position.
+CrownRank is a fan-powered leaderboard for content creators. A creator can enter with a username, at least one social profile, an optional photo, and a contribution amount of their choice—without creating an account. Anyone can later contribute another payment to boost that creator's position.
 
-> This repository currently contains the project foundation and a visual frontend shell. Creator onboarding, uploads, Stripe payments, webhook processing, and live ranking are intentionally planned for the next milestones.
+> The frontend currently uses realistic dummy data and a simulated checkout adapter. Persistence, uploads, Stripe Checkout, webhook processing, and live ranking APIs are planned for the backend milestones.
 
 ## Technology
 
@@ -31,7 +31,9 @@ tests/
 └── CrownRank.ArchitectureTests/   # Dependency-boundary tests
 ```
 
-The backend follows Clean Architecture: dependencies point inward toward `Domain`; `Api` wires implementations together. The frontend starts with page, app, and shared layers and will gain self-contained feature folders as workflows are introduced.
+The backend follows Clean Architecture: dependencies point inward toward `Domain`; `Api` wires implementations together. The frontend is organized by business feature, with separate `domain`, `application`, `data`, and `ui` layers. Repository and payment gateway interfaces keep dummy implementations replaceable by HTTP and Stripe adapters.
+
+The public experience intentionally has no login, registration, or account-setup pages. The creator-entry dialog validates a username, one or more HTTPS social links, an optional image, and a user-defined contribution of at least $1.
 
 ## Prerequisites
 
@@ -92,7 +94,7 @@ Architecture tests protect the inward dependency rule and should grow alongside 
 1. Creator aggregate, social-profile validation, ranking rules, and initial EF migration
 2. Public leaderboard API and responsive homepage integration
 3. Multi-step creator submission form with image upload
-4. Stripe Checkout for the initial $100 entry and arbitrary boosts
+4. Stripe Checkout for user-defined entry contributions and arbitrary boosts
 5. Idempotent Stripe webhooks that activate entries and apply boosts only after confirmed payment
 6. Creator detail/boost pages, moderation tools, observability, and deployment
 

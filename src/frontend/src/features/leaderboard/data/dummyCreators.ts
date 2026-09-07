@@ -1,0 +1,10 @@
+import type { Creator } from '../domain/creator'
+
+export const dummyCreators: readonly Creator[] = [
+  { id: 'creator-luna', username: 'lunaafterdark', displayName: 'Luna Vale', imageUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=240&q=80', socialProfiles: [{ id: 'luna-instagram', platform: 'instagram', url: 'https://instagram.com/lunaafterdark' }, { id: 'luna-tiktok', platform: 'tiktok', url: 'https://tiktok.com/@lunaafterdark' }], totalContributedCents: 284750, supporterCount: 128, joinedAt: '2026-08-18T12:00:00.000Z' },
+  { id: 'creator-maya', username: 'mayamoves', displayName: 'Maya Chen', imageUrl: 'https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=240&q=80', socialProfiles: [{ id: 'maya-youtube', platform: 'youtube', url: 'https://youtube.com/@mayamoves' }], totalContributedCents: 219400, supporterCount: 94, joinedAt: '2026-08-21T08:30:00.000Z' },
+  { id: 'creator-nova', username: 'novarose', displayName: 'Nova Rose', imageUrl: 'https://images.unsplash.com/photo-1531123897727-8f129e1688ce?auto=format&fit=crop&w=240&q=80', socialProfiles: [{ id: 'nova-twitch', platform: 'twitch', url: 'https://twitch.tv/novarose' }, { id: 'nova-x', platform: 'x', url: 'https://x.com/novarose' }], totalContributedCents: 186900, supporterCount: 77, joinedAt: '2026-08-23T17:15:00.000Z' },
+  { id: 'creator-aria', username: 'ariaatlas', displayName: 'Aria Atlas', imageUrl: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=240&q=80', socialProfiles: [{ id: 'aria-instagram', platform: 'instagram', url: 'https://instagram.com/ariaatlas' }], totalContributedCents: 143250, supporterCount: 61, joinedAt: '2026-08-25T10:45:00.000Z' },
+  { id: 'creator-jules', username: 'julescreates', displayName: 'Jules Rivera', imageUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=240&q=80&sat=-60', socialProfiles: [{ id: 'jules-website', platform: 'website', url: 'https://example.com/jules' }], totalContributedCents: 97500, supporterCount: 39, joinedAt: '2026-08-29T14:00:00.000Z' },
+]
+
