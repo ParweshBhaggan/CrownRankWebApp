@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/backend/CrownRank.Api/CrownRank.Api.csproj" />
+    <Project Path="src/backend/CrownRank.Application/CrownRank.Application.csproj" />
+    <Project Path="src/backend/CrownRank.Domain/CrownRank.Domain.csproj" />
+    <Project Path="src/backend/CrownRank.Infrastructure/CrownRank.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/CrownRank.ArchitectureTests/CrownRank.ArchitectureTests.csproj" />
+  </Folder>
+</Solution>
+
