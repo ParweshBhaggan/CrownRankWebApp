@@ -1,7 +1,7 @@
 namespace CrownRank.Application.Abstractions;
 
-public sealed record CheckoutRequest(Guid CreatorId, long AmountCents, string Currency, string Purpose);
-public sealed record CheckoutSession(string Id, Uri CheckoutUrl);
+public sealed record CheckoutRequest(Guid CreatorId, decimal Amount, string Currency, string Purpose, Guid ReferenceId);
+public sealed record CheckoutSession(string Id, bool Confirmed);
 
 public interface IPaymentGateway
 {

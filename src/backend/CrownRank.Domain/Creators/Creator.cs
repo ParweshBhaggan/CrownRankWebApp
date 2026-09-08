@@ -5,16 +5,16 @@ public sealed class Creator
     private Creator() { }
 
     public Creator(Guid id, string firstName, string lastName, string username, CreatorCategory category,
-        string imageUrl, string? imageStorageKey, string? location, DateTimeOffset createdAt)
+        string imageUrl, string? imageStorageKey, DateTimeOffset createdAt)
     {
         Id = id;
         FirstName = Required(firstName, nameof(firstName), 80);
         LastName = Required(lastName, nameof(lastName), 80);
         Username = Required(Required(username, nameof(username), 51).TrimStart('@'), nameof(username), 50).ToLowerInvariant();
+        if (!System.Text.RegularExpressions.Regex.IsMatch(Username, @"^[a-z0-9._-]{2,40}$")) throw new ArgumentException("Use 2–40 letters, numbers, dots, underscores, or dashes.");
         Category = category;
         ImageUrl = Required(imageUrl, nameof(imageUrl), 500);
         ImageStorageKey = imageStorageKey;
-        Location = string.IsNullOrWhiteSpace(location) ? null : location.Trim();
         CreatedAt = createdAt;
     }
 
@@ -25,7 +25,11 @@ public sealed class Creator
     public CreatorCategory Category { get; private set; }
     public string ImageUrl { get; private set; } = string.Empty;
     public string? ImageStorageKey { get; private set; }
-    public string? Location { get; private set; }
+    public bool IsHidden { get; private set; }
+    public Guid? EntryReference { get; private set; }
+    public decimal OpeningAmount { get; private set; }
+    public void PrepareEntry(Guid reference, decimal amount) { Money.Validate(amount); EntryReference = reference; OpeningAmount = amount; }
+    public void Hide() => IsHidden = true;
     public DateTimeOffset CreatedAt { get; private set; }
     public IReadOnlyCollection<SocialProfile> SocialProfiles => _socialProfiles;
     public IReadOnlyCollection<Contribution> Contributions => _contributions;
@@ -36,10 +40,11 @@ public sealed class Creator
     public void AddSocialProfile(SocialPlatform platform, string url) =>
         _socialProfiles.Add(new SocialProfile(Guid.NewGuid(), Id, platform, url));
 
-    public void AddContribution(long amountCents, ContributionKind kind, DateTimeOffset confirmedAt, string reference)
+    public void AddContribution(decimal amount, ContributionKind kind, DateTimeOffset confirmedAt, string reference)
     {
-        if (amountCents < 100) throw new ArgumentOutOfRangeException(nameof(amountCents), "Minimum amount is one currency unit.");
-        _contributions.Add(new Contribution(Guid.NewGuid(), Id, amountCents, kind, confirmedAt, reference));
+        Money.Validate(amount);
+        if (_contributions.Any(x => x.PaymentReference == reference)) return;
+        _contributions.Add(new Contribution(Guid.NewGuid(), Id, amount, kind, confirmedAt, reference));
     }
 
     private static string Required(string value, string name, int maxLength)
@@ -48,3 +53,4 @@ public sealed class Creator
         return normalized.Length <= maxLength ? normalized : throw new ArgumentException($"{name} is too long.", name);
     }
 }
+

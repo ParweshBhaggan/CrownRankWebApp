@@ -23,7 +23,7 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
     app.UseSwagger();
     app.UseSwaggerUI(options => { options.SwaggerEndpoint("/swagger/v1/swagger.json", "CrownRank API v1"); options.RoutePrefix = "swagger"; });
-    await app.Services.InitializeDatabaseAsync();
+    if (builder.Configuration.GetValue<bool>("SeedData:Enabled")) await app.Services.InitializeDatabaseAsync();
 }
 
 app.UseExceptionHandler();
@@ -32,9 +32,10 @@ app.UseCors("Frontend");
 app.UseStaticFiles();
 app.MapGet("/api/health", () => Results.Ok(new { status = "healthy" }))
     .WithName("HealthCheck");
-app.MapCreatorEndpoints();
-app.MapPaymentEndpoints();
+app.MapCreatorEndpoints(app.Environment.IsDevelopment());
+if (app.Environment.IsDevelopment()) app.MapPaymentEndpoints();
 
 app.Run();
 
 public partial class Program;
+

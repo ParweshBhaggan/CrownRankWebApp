@@ -14,8 +14,9 @@ export function RankingList({ creators, onBoost, compact = false }: Props) {
         <span><strong>{creator.firstName} {creator.lastName}</strong><small>@{creator.username}</small></span>
       </Link>
       <span className="category-pill">{creatorCategoryLabels[creator.category]}</span>
-      <strong className="rank-score">{formatCurrency(creator.totalContributedCents)}</strong>
+      <strong className="rank-score">{formatCurrency(creator.totalContributed)}</strong>
       <button className="boost-button" type="button" onClick={() => onBoost(creator)}>Boost <span>＋</span></button>
     </li>)}
   </ol>
 }
+

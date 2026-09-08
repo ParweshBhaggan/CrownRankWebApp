@@ -5,9 +5,12 @@ namespace CrownRank.Application.Abstractions;
 public interface ICreatorRepository
 {
     Task<IReadOnlyList<Creator>> GetAllAsync(CancellationToken cancellationToken);
+    Task<Creator?> GetForUpdateAsync(Guid id, CancellationToken cancellationToken);
     Task<Creator?> GetByIdAsync(Guid id, CancellationToken cancellationToken);
     Task<bool> UsernameExistsAsync(string username, CancellationToken cancellationToken);
     Task AddAsync(Creator creator, CancellationToken cancellationToken);
-    void Remove(Creator creator);
+    Task<Creator?> GetByEntryReferenceAsync(Guid reference, CancellationToken cancellationToken);
+    Task<Contribution?> GetContributionAsync(string reference, CancellationToken cancellationToken);
     Task SaveChangesAsync(CancellationToken cancellationToken);
 }
+
