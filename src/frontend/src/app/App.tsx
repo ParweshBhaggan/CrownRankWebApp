@@ -1,6 +1,6 @@
 import { useCreators } from '../features/leaderboard/application/useCreators'
 import { About, Rules, Faq, Terms, Privacy } from '../pages/InformationPages'
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { BrowserRouter, Link, NavLink, Navigate, Route, Routes, useParams, useSearchParams } from 'react-router-dom'
 import { EnterRankingDialog } from '../features/creator-entry/ui/EnterRankingDialog'
 import { rankCreators } from '../features/leaderboard/application/rankCreators'
@@ -85,12 +85,6 @@ export function App() {
   const { creators, loading: isLoading, error: loadError, retry } = useCreators('/api/creators', revision)
   const ranked = useMemo(() => rankCreators(creators), [creators])
   const confirmed = () => setRevision(value => value + 1)
-  useEffect(() => {
-    const refresh = () => setRevision(value => value + 1)
-    window.addEventListener('focus', refresh)
-    const timer = window.setInterval(refresh, 60_000)
-    return () => { window.removeEventListener('focus', refresh); window.clearInterval(timer) }
-  }, [])
   const [entryOpen, setEntryOpen] = useState(false)
   const [entryVersion, setEntryVersion] = useState(0)
   const [boostCreator, setBoostCreator] = useState<Creator>()

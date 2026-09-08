@@ -8,7 +8,7 @@ CrownRank is a fan-powered creator leaderboard built with React, TypeScript, ASP
 2. The existing mock-payment approach confirms a simulated checkout through the backend development adapter. No payment provider is contacted and no money is charged.
 3. Confirmation records a contribution and makes the creator visible.
 4. Boost records another simulated contribution against an existing visible creator.
-5. Boards refresh after confirmation, on window focus, and every minute.
+5. Boards refresh after confirmation and explicit retries. Window focus does not restart in-flight requests; this avoids repeated cancellations while switching between the browser and debugger. Read requests time out with a retry message after 30 seconds.
 
 Entry and checkout references are stable across retries in the current dialog. Closing and reopening the entry dialog preserves an unfinished attempt during the current page session. A full browser reload discards that in-memory draft; abandoned pending entries currently reserve their usernames and require local cleanup. Real checkout recovery, expiry, and cancellation screens remain future work.
 
