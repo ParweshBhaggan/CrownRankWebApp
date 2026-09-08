@@ -22,3 +22,4 @@ vite.config.d.ts
 uploads/
 **/wwwroot/uploads/
 *.db
+/.vs/CrownRank.slnx/FileContentIndex
