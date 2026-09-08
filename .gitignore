@@ -21,3 +21,5 @@ vite.config.d.ts
 # Uploads and local data
 uploads/
 *.db
+/.vs/CrownRank.slnx/FileContentIndex/4a0d3247-c56b-4e50-ac34-9ecaf268e0e2.vsidx
+/src/backend/CrownRank.Api/Properties/launchSettings.json
