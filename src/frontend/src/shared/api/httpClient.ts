@@ -1,4 +1,4 @@
-const apiBaseUrl = import.meta.env.VITE_API_URL ?? ''
+export const apiBaseUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:5080'
 
 export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${apiBaseUrl}${path}`, init)
@@ -6,3 +6,6 @@ export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T
   return response.json() as Promise<T>
 }
 
+export function resolveApiAsset(url: string): string {
+  return url.startsWith('/') ? `${apiBaseUrl}${url}` : url
+}
