@@ -12,6 +12,10 @@ public sealed class CrownRankDbContext(DbContextOptions<CrownRankDbContext> opti
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        base.OnModelCreating(modelBuilder);
+
+        modelBuilder.HasDefaultSchema("CrownrankSchema");
+
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(CrownRankDbContext).Assembly);
     }
 }
