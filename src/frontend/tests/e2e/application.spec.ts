@@ -54,7 +54,7 @@ test('visitor can navigate, enter the ranking, and Boost without an account', as
   await page.getByRole('button', { name: 'Done' }).click()
   await expect(page.getByText('$15.00').first()).toBeVisible()
 
-  await page.getByRole('link', { name: 'Global rank' }).click()
+  await page.getByRole('link', { name: 'Global rank', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Global ranking' })).toBeVisible()
   await page.getByRole('link', { name: 'Categories' }).click()
   await expect(page.getByRole('heading', { name: 'Creator categories' })).toBeVisible()
