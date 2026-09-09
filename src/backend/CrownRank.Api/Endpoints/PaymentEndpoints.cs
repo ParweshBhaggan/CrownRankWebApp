@@ -1,4 +1,5 @@
 using CrownRank.Application.Abstractions;
+using CrownRank.Application.Creators;
 
 namespace CrownRank.Api.Endpoints;
 
@@ -6,13 +7,13 @@ public static class PaymentEndpoints
 {
     public static IEndpointRouteBuilder MapPaymentEndpoints(this IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapPost("/api/payments/checkout", async (CheckoutApiRequest request, IPaymentGateway gateway, CancellationToken cancellationToken) =>
+        endpoints.MapPost("/api/payments/checkout", async Task<IResult> (CheckoutRequest request, MockCheckoutService service, CancellationToken cancellationToken) =>
         {
-            if (request.AmountCents < 100) return Results.ValidationProblem(new Dictionary<string, string[]> { ["amountCents"] = ["Minimum amount is 100 cents."] });
-            var session = await gateway.CreateCheckoutAsync(new(request.CreatorId, request.AmountCents, "USD", request.Purpose), cancellationToken);
-            return Results.Ok(session);
-        }).WithTags("Payments").WithName("CreateCheckout").WithDescription("Uses a development adapter today; replace it with Stripe without changing this API contract.");
+            try { return Results.Ok(await service.CheckoutAsync(request, cancellationToken)); }
+            catch (ArgumentException ex) { return Results.ValidationProblem(new Dictionary<string, string[]> { ["request"] = [ex.Message] }); }
+            catch (KeyNotFoundException) { return Results.NotFound(); }
+            catch (InvalidOperationException ex) { return Results.Conflict(new { error = ex.Message }); }
+        }).WithTags("Payments").WithName("CreateMockCheckout").WithDescription("Development only: confirms a simulated payment. No money is charged.");
         return endpoints;
     }
 }
-public sealed record CheckoutApiRequest(Guid CreatorId, long AmountCents, string Purpose);

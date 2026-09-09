@@ -12,8 +12,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CrownRank.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(CrownRankDbContext))]
-    [Migration("20260908094816_AddCrownrankSchema")]
-    partial class AddCrownrankSchema
+    [Migration("20260909094025_InitialCreation")]
+    partial class InitialCreation
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -32,8 +32,9 @@ namespace CrownRank.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<long>("AmountCents")
-                        .HasColumnType("bigint");
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
 
                     b.Property<DateTimeOffset>("ConfirmedAt")
                         .HasColumnType("timestamp with time zone");
@@ -75,6 +76,9 @@ namespace CrownRank.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Guid?>("EntryReference")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("FirstName")
                         .IsRequired()
                         .HasMaxLength(80)
@@ -89,14 +93,17 @@ namespace CrownRank.Infrastructure.Persistence.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
+                    b.Property<bool>("IsHidden")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("LastName")
                         .IsRequired()
                         .HasMaxLength(80)
                         .HasColumnType("character varying(80)");
 
-                    b.Property<string>("Location")
-                        .HasMaxLength(120)
-                        .HasColumnType("character varying(120)");
+                    b.Property<decimal>("OpeningAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
 
                     b.Property<string>("Username")
                         .IsRequired()
@@ -104,6 +111,9 @@ namespace CrownRank.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(50)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("EntryReference")
+                        .IsUnique();
 
                     b.HasIndex("Username")
                         .IsUnique();
@@ -143,7 +153,7 @@ namespace CrownRank.Infrastructure.Persistence.Migrations
                     b.HasOne("CrownRank.Domain.Creators.Creator", null)
                         .WithMany("Contributions")
                         .HasForeignKey("CreatorId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
 

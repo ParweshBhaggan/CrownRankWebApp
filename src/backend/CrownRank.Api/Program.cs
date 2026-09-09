@@ -2,6 +2,7 @@ using CrownRank.Api.Endpoints;
 using CrownRank.Application;
 using CrownRank.Infrastructure;
 using CrownRank.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -23,17 +24,23 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
     app.UseSwagger();
     app.UseSwaggerUI(options => { options.SwaggerEndpoint("/swagger/v1/swagger.json", "CrownRank API v1"); options.RoutePrefix = "swagger"; });
-    await app.Services.InitializeDatabaseAsync();
+    if (builder.Configuration.GetValue<bool>("SeedData:Enabled")) await app.Services.InitializeDatabaseAsync();
 }
 
 app.UseExceptionHandler();
 app.UseHttpsRedirection();
 app.UseCors("Frontend");
 app.UseStaticFiles();
-app.MapGet("/api/health", () => Results.Ok(new { status = "healthy" }))
+app.MapGet("/api/health", async Task<IResult> (CrownRankDbContext database, CancellationToken cancellationToken) =>
+{
+    var connected = await database.Database.CanConnectAsync(cancellationToken);
+    return connected
+        ? Results.Ok(new { status = "healthy", database = "connected" })
+        : Results.Problem(statusCode: StatusCodes.Status503ServiceUnavailable, title: "Database unavailable");
+})
     .WithName("HealthCheck");
-app.MapCreatorEndpoints();
-app.MapPaymentEndpoints();
+app.MapCreatorEndpoints(app.Environment.IsDevelopment());
+if (app.Environment.IsDevelopment()) app.MapPaymentEndpoints();
 
 app.Run();
 

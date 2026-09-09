@@ -15,6 +15,7 @@ vite.config.d.ts
 .env.*
 !.env.example
 .idea/
+.vs/
 .vscode/
 .DS_Store
 

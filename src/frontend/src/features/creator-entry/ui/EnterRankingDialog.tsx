@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 import { creatorCategories, creatorCategoryLabels, type CreatorCategory, type SocialPlatform } from '../../leaderboard/domain/creator'
-import type { PaymentGateway } from '../../payments/domain/payment'
-import { formatCurrency } from '../../../shared/format/currency'
+import { ApiError } from '../../../shared/api/httpClient'
+import { createEntry } from '../data/createEntry'
+import { formatCurrency, parseAmount } from '../../../shared/format/currency'
 import { validateRankingEntry } from '../application/validateRankingEntry'
 import type { RankingEntryValidationErrors, SocialLinkInput } from '../domain/rankingEntry'
 
@@ -12,10 +13,10 @@ const platforms: readonly { value: SocialPlatform; label: string }[] = [
   { value: 'website', label: 'Website' },
 ]
 
-interface Props { readonly isOpen: boolean; readonly paymentGateway: PaymentGateway; readonly onClose: () => void }
+interface Props { readonly isOpen: boolean; readonly onClose: (completed?: boolean) => void; readonly onConfirmed: () => void }
 const createSocialLink = (): SocialLinkInput => ({ id: crypto.randomUUID(), platform: 'instagram', url: '' })
 
-export function EnterRankingDialog({ isOpen, paymentGateway, onClose }: Props) {
+export function EnterRankingDialog({ isOpen, onClose, onConfirmed }: Props) {
   const dialogRef = useRef<HTMLDialogElement>(null)
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
@@ -29,6 +30,10 @@ export function EnterRankingDialog({ isOpen, paymentGateway, onClose }: Props) {
   const [errors, setErrors] = useState<RankingEntryValidationErrors>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [checkoutReady, setCheckoutReady] = useState(false)
+  const [submitError, setSubmitError] = useState('')
+  const [entryAttempted, setEntryAttempted] = useState(false)
+  const submitting = useRef(false)
+  const entryReference = useRef(crypto.randomUUID())
 
   useEffect(() => {
     const dialog = dialogRef.current
@@ -38,7 +43,7 @@ export function EnterRankingDialog({ isOpen, paymentGateway, onClose }: Props) {
   }, [isOpen])
 
   useEffect(() => () => { if (previewUrl) URL.revokeObjectURL(previewUrl) }, [previewUrl])
-  const closeDialog = () => { if (!isSubmitting) onClose() }
+  const closeDialog = () => { if (!submitting.current) onClose(checkoutReady) }
   const updateSocialLink = (id: string, patch: Partial<SocialLinkInput>) => setSocialLinks((current) => current.map((link) => link.id === id ? { ...link, ...patch } : link))
 
   function handleImageChange(event: ChangeEvent<HTMLInputElement>) {
@@ -50,31 +55,33 @@ export function EnterRankingDialog({ isOpen, paymentGateway, onClose }: Props) {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    const contributionCents = Math.round(Number(amount) * 100)
-    const validationErrors = validateRankingEntry({ firstName, lastName, username, category, socialLinks, profileImage, contributionCents })
+    if (submitting.current) return
+    const contribution = parseAmount(amount)
+    const validationErrors = validateRankingEntry({ firstName, lastName, username, category, socialLinks, profileImage, contribution })
     if (!acceptedTerms) validationErrors.terms = 'Confirm the declaration before continuing.'
     setErrors(validationErrors)
     if (Object.keys(validationErrors).length > 0) return
 
+    setEntryAttempted(true)
+    submitting.current = true
+    setSubmitError('')
     setIsSubmitting(true)
     try {
-      await paymentGateway.createCheckout({
-        referenceId: crypto.randomUUID(), purpose: 'ranking-entry', money: { amountCents: contributionCents, currency: 'USD' },
-        successUrl: window.location.origin, cancelUrl: window.location.href, metadata: { username: username.trim(), firstName: firstName.trim(), lastName: lastName.trim(), category },
-      })
+      await createEntry({ firstName, lastName, username, category, socialLinks, profileImage, contribution }, entryReference.current)
+      onConfirmed()
       setCheckoutReady(true)
-    } finally { setIsSubmitting(false) }
+    } catch (error) { if (error instanceof ApiError && error.status < 500) setEntryAttempted(false); setSubmitError(error instanceof Error ? error.message : 'Could not submit your entry. Please retry.') } finally { submitting.current = false; setIsSubmitting(false) }
   }
 
   return (
-    <dialog ref={dialogRef} className="entry-dialog" onCancel={(event) => { event.preventDefault(); closeDialog() }} onClose={onClose}>
+    <dialog ref={dialogRef} className="entry-dialog" onCancel={(event) => { event.preventDefault(); closeDialog() }} onClose={closeDialog}>
       <div className="dialog-shell">
         <div className="dialog-topbar"><a className="brand" href="/">CrownRank</a><button className="icon-button" type="button" aria-label="Close dialog" onClick={closeDialog}>×</button></div>
         {checkoutReady ? (
-          <div className="success-state" role="status"><span className="success-mark">✓</span><p className="eyebrow">Checkout prepared</p><h2>You’re ready for the crown.</h2><p>In production, Stripe Checkout opens here. Your ranking is only activated after the payment webhook is verified.</p><button className="primary-button" type="button" onClick={onClose}>Back to leaderboard</button></div>
+          <div className="success-state" role="status"><span className="success-mark">✓</span><p className="eyebrow">Mock payment confirmed</p><h2>You’re ready for the crown.</h2><p>Your profile is now on the leaderboard. This was a mock payment; no money was charged.</p><button className="primary-button" type="button" onClick={closeDialog}>Back to leaderboard</button></div>
         ) : (
-          <form onSubmit={handleSubmit} noValidate>
-            <header className="dialog-heading"><p className="eyebrow">Enter the ranking</p><h2>Put your name on the board.</h2><p>No account needed. Choose your amount, add your creator profile, and continue to secure checkout.</p></header>
+          <form onSubmit={handleSubmit} noValidate><fieldset disabled={isSubmitting || entryAttempted} className="entry-fields">
+            <header className="dialog-heading"><p className="eyebrow">Enter the ranking</p><h2>Put your name on the board.</h2><p>No account needed. Choose your amount, add your creator profile, and try the mock checkout.</p></header>
             <div className="form-layout">
               <div className="form-main">
                 <div className="field-grid">
@@ -86,8 +93,7 @@ export function EnterRankingDialog({ isOpen, paymentGateway, onClose }: Props) {
                 <fieldset className="field-group"><legend>Social profiles</legend><p className="field-hint">At least one public creator profile is required.</p><div className="social-fields">{socialLinks.map((link, index) => <div className="social-row" key={link.id}><select aria-label={`Platform ${index + 1}`} value={link.platform} onChange={(event) => updateSocialLink(link.id, { platform: event.target.value as SocialPlatform })}>{platforms.map((platform) => <option key={platform.value} value={platform.value}>{platform.label}</option>)}</select><input type="url" aria-label={`Social profile URL ${index + 1}`} value={link.url} onChange={(event) => updateSocialLink(link.id, { url: event.target.value })} placeholder="https://..." inputMode="url" />{socialLinks.length > 1 && <button className="remove-button" type="button" aria-label={`Remove social profile ${index + 1}`} onClick={() => setSocialLinks((current) => current.filter((item) => item.id !== link.id))}>×</button>}</div>)}</div>{socialLinks.length < 5 && <button className="text-button" type="button" onClick={() => setSocialLinks((current) => [...current, createSocialLink()])}>+ Add another profile</button>}{errors.socialLinks && <p className="field-error">{errors.socialLinks}</p>}</fieldset>
                 <div className="field-group"><label htmlFor="profile-image">Profile image <span className="optional">Optional</span></label><label className="upload-field" htmlFor="profile-image">{previewUrl ? <img src={previewUrl} alt="Selected profile preview" /> : <span className="upload-icon">↥</span>}<span><strong>{profileImage?.name ?? 'Choose an image'}</strong><small>JPG, PNG, WebP, GIF or BMP · Max 8 MB</small></span></label><input className="visually-hidden" id="profile-image" type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/bmp" onChange={handleImageChange} />{errors.profileImage && <p className="field-error">{errors.profileImage}</p>}</div>
               </div>
-              <aside className="contribution-card"><p className="eyebrow">Your opening contribution</p><label htmlFor="amount">Choose your amount</label><div className="amount-input"><span>$</span><input id="amount" type="number" min="1" step="1" value={amount} onChange={(event) => setAmount(event.target.value)} inputMode="decimal" /></div><div className="quick-amounts" aria-label="Suggested amounts">{[10, 25, 50, 100].map((value) => <button className={amount === String(value) ? 'selected' : ''} key={value} type="button" onClick={() => setAmount(String(value))}>${value}</button>)}</div>{errors.contribution && <p className="field-error">{errors.contribution}</p>}<div className="rank-note"><span>♛</span><p><strong>Every amount counts</strong>Your contribution becomes your starting score. Fans can boost it later.</p></div><label className="check-row"><input type="checkbox" checked={acceptedTerms} onChange={(event) => setAcceptedTerms(event.target.checked)} /><span>I confirm I own or represent this creator profile and accept the platform terms.</span></label>{errors.terms && <p className="field-error">{errors.terms}</p>}<button className="primary-button full" type="submit" disabled={isSubmitting}>{isSubmitting ? 'Preparing checkout…' : `Continue with ${formatCurrency(Math.max(0, Math.round(Number(amount || 0) * 100)))}`}</button><p className="secure-note">Secure payment handled by Stripe at launch.</p></aside>
-            </div>
+              <aside className="contribution-card"><p className="eyebrow">Your opening contribution</p><label htmlFor="amount">Choose your amount</label><div className="amount-input"><span>$</span><input id="amount" type="number" min="1" max="10000" step="0.01" value={amount} onChange={(event) => setAmount(event.target.value)} inputMode="decimal" /></div><div className="quick-amounts" aria-label="Suggested amounts">{[10, 25, 50, 100].map((value) => <button className={amount === String(value) ? 'selected' : ''} key={value} type="button" onClick={() => setAmount(String(value))}>${value}</button>)}</div>{errors.contribution && <p className="field-error">{errors.contribution}</p>}<div className="rank-note"><span>♛</span><p><strong>Every amount counts</strong>Your contribution becomes your starting score. Fans can boost it later.</p></div><label className="check-row"><input type="checkbox" checked={acceptedTerms} onChange={(event) => setAcceptedTerms(event.target.checked)} /><span>I confirm I own or represent this creator profile and accept the platform terms.</span></label>{errors.terms && <p className="field-error">{errors.terms}</p>}</aside></div></fieldset>{submitError && <p role="alert" className="field-error">{submitError}</p>}<button className="primary-button full" type="submit" disabled={isSubmitting}>{isSubmitting ? 'Preparing checkout…' : `Continue with ${formatCurrency(parseAmount(amount))}`}</button><p className="secure-note">Mock payment · No money is charged.</p>
           </form>
         )}
       </div>

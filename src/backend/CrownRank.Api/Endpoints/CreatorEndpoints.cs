@@ -7,13 +7,13 @@ namespace CrownRank.Api.Endpoints;
 
 public static class CreatorEndpoints
 {
-    public static IEndpointRouteBuilder MapCreatorEndpoints(this IEndpointRouteBuilder endpoints)
+    public static IEndpointRouteBuilder MapCreatorEndpoints(this IEndpointRouteBuilder endpoints, bool development)
     {
         var group = endpoints.MapGroup("/api/creators").WithTags("Creators");
         group.MapGet("/", GetAll).WithName("GetCreators").WithSummary("Returns all creators with confirmed global and current UTC-day scores.");
         group.MapGet("/{id:guid}", GetById).WithName("GetCreator");
-        group.MapPost("/", Create).WithName("CreateCreator").WithSummary("Creates a local-development creator entry and processes its image.").DisableAntiforgery();
-        group.MapDelete("/{id:guid}", Delete).WithName("DeleteCreator").WithDescription("TEMPORARILY UNSECURED for local development. Add an admin authorization policy before deployment.");
+        if (development) group.MapPost("/", Create).WithName("CreateCreator").WithSummary("Creates and mock-confirms a development entry atomically.").DisableAntiforgery();
+        if (development) group.MapDelete("/{id:guid}", Delete).WithName("DeleteCreator").WithDescription("Development only: hide the public profile while retaining its contribution ledger.");
         endpoints.MapGet("/api/rankings/daily/{date}", async (DateOnly date, CreatorService service, CancellationToken cancellationToken) =>
             Results.Ok(await service.GetDailyAsync(date, cancellationToken))).WithTags("Rankings").WithName("GetDailyRanking");
         return endpoints;
@@ -31,10 +31,13 @@ public static class CreatorEndpoints
         try
         {
             var profiles = JsonSerializer.Deserialize<List<SocialProfileRequest>>(request.SocialProfilesJson, new JsonSerializerOptions(JsonSerializerDefaults.Web)) ?? [];
-            var command = new CreateCreatorCommand(request.FirstName, request.LastName, request.Username, ParseCategory(request.Category), request.Location,
-                profiles.Select(x => new SocialProfileInput(ParsePlatform(x.Platform), x.Url)).ToList(), request.InitialAmountCents,
-                request.Image?.OpenReadStream(), request.Image?.FileName, request.Image?.ContentType, request.Image?.Length ?? 0);
-            var creator = await service.CreateAsync(command, cancellationToken);
+            if (profiles.Count is < 1 or > 5 || profiles.Any(x => x is null || string.IsNullOrWhiteSpace(x.Platform) || string.IsNullOrWhiteSpace(x.Url)))
+                throw new ArgumentException("Provide 1–5 complete social profiles.");
+            using var imageStream = request.Image?.OpenReadStream();
+            var command = new CreateCreatorCommand(request.FirstName, request.LastName, request.Username, ParseCategory(request.Category), request.EntryReference,
+                profiles.Select(x => new SocialProfileInput(ParsePlatform(x.Platform), x.Url)).ToList(), request.InitialAmount,
+                imageStream, request.Image?.FileName, request.Image?.ContentType, request.Image?.Length ?? 0);
+            var creator = await service.CreateConfirmedAsync(command, cancellationToken);
             return Results.Created($"/api/creators/{creator.Id}", creator);
         }
         catch (JsonException) { return Results.ValidationProblem(new Dictionary<string, string[]> { ["socialProfiles"] = ["Social profiles must be valid JSON."] }); }
@@ -68,9 +71,9 @@ public sealed class CreateCreatorRequest
     public required string LastName { get; init; }
     public required string Username { get; init; }
     public required string Category { get; init; }
-    public string? Location { get; init; }
+    public Guid EntryReference { get; init; }
     public required string SocialProfilesJson { get; init; }
-    public long InitialAmountCents { get; init; }
+    public decimal InitialAmount { get; init; }
     public IFormFile? Image { get; init; }
 }
 public sealed record SocialProfileRequest(string Platform, string Url);

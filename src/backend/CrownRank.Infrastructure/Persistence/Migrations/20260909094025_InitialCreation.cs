@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace CrownRank.Infrastructure.Persistence.Migrations
 {
     /// <inheritdoc />
-    public partial class AddCrownrankSchema : Migration
+    public partial class InitialCreation : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -26,7 +26,9 @@ namespace CrownRank.Infrastructure.Persistence.Migrations
                     Category = table.Column<string>(type: "character varying(40)", maxLength: 40, nullable: false),
                     ImageUrl = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: false),
                     ImageStorageKey = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: true),
-                    Location = table.Column<string>(type: "character varying(120)", maxLength: 120, nullable: true),
+                    IsHidden = table.Column<bool>(type: "boolean", nullable: false),
+                    EntryReference = table.Column<Guid>(type: "uuid", nullable: true),
+                    OpeningAmount = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: false),
                     CreatedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false)
                 },
                 constraints: table =>
@@ -41,7 +43,7 @@ namespace CrownRank.Infrastructure.Persistence.Migrations
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
                     CreatorId = table.Column<Guid>(type: "uuid", nullable: false),
-                    AmountCents = table.Column<long>(type: "bigint", nullable: false),
+                    Amount = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: false),
                     Kind = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: false),
                     ConfirmedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
                     PaymentReference = table.Column<string>(type: "character varying(150)", maxLength: 150, nullable: false)
@@ -55,7 +57,7 @@ namespace CrownRank.Infrastructure.Persistence.Migrations
                         principalSchema: "CrownrankSchema",
                         principalTable: "creators",
                         principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
+                        onDelete: ReferentialAction.Restrict);
                 });
 
             migrationBuilder.CreateTable(
@@ -91,6 +93,13 @@ namespace CrownRank.Infrastructure.Persistence.Migrations
                 schema: "CrownrankSchema",
                 table: "contributions",
                 column: "PaymentReference",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_creators_EntryReference",
+                schema: "CrownrankSchema",
+                table: "creators",
+                column: "EntryReference",
                 unique: true);
 
             migrationBuilder.CreateIndex(
