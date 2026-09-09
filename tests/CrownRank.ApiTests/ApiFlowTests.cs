@@ -13,30 +13,31 @@ public sealed class ApiFlowTests
     {
         await using var factory = new TestApiFactory();
         using var client = factory.CreateHttpsClient();
+        var ct = TestContext.Current.CancellationToken;
         var entryReference = Guid.NewGuid();
 
-        using var entryResponse = await client.PostAsync("/api/creators", ValidEntry(entryReference));
+        using var entryResponse = await client.PostAsync("/api/creators", ValidEntry(entryReference), ct);
         Assert.Equal(HttpStatusCode.Created, entryResponse.StatusCode);
-        var created = await entryResponse.Content.ReadFromJsonAsync<JsonElement>();
+        var created = await entryResponse.Content.ReadFromJsonAsync<JsonElement>(ct);
         var creatorId = created.GetProperty("id").GetGuid();
         Assert.Equal(12.50m, created.GetProperty("totalContributed").GetDecimal());
         Assert.Equal("ada", created.GetProperty("username").GetString());
 
-        var global = await client.GetFromJsonAsync<JsonElement[]>("/api/creators");
+        var global = await client.GetFromJsonAsync<JsonElement[]>("/api/creators", ct);
         Assert.Single(global!);
-        var daily = await client.GetFromJsonAsync<JsonElement[]>("/api/rankings/daily/2026-09-08");
+        var daily = await client.GetFromJsonAsync<JsonElement[]>("/api/rankings/daily/2026-09-08", ct);
         Assert.Single(daily!);
 
         var boostReference = Guid.NewGuid();
         var boost = new { referenceId = boostReference, creatorId, purpose = "creator-boost", amount = 2.50m, currency = "USD" };
-        Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync("/api/payments/checkout", boost)).StatusCode);
-        Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync("/api/payments/checkout", boost)).StatusCode);
-        global = await client.GetFromJsonAsync<JsonElement[]>("/api/creators");
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync("/api/payments/checkout", boost, ct)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync("/api/payments/checkout", boost, ct)).StatusCode);
+        global = await client.GetFromJsonAsync<JsonElement[]>("/api/creators", ct);
         Assert.Equal(15m, global![0].GetProperty("totalContributed").GetDecimal());
 
-        Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync($"/api/creators/{creatorId}")).StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"/api/creators/{creatorId}")).StatusCode);
-        Assert.Empty((await client.GetFromJsonAsync<JsonElement[]>("/api/creators"))!);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync($"/api/creators/{creatorId}", ct)).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"/api/creators/{creatorId}", ct)).StatusCode);
+        Assert.Empty((await client.GetFromJsonAsync<JsonElement[]>("/api/creators", ct))!);
         Assert.Equal(2, factory.Store.Creators.Single().Contributions.Count);
     }
 
@@ -45,11 +46,12 @@ public sealed class ApiFlowTests
     {
         await using var factory = new TestApiFactory();
         using var client = factory.CreateHttpsClient();
+        var ct = TestContext.Current.CancellationToken;
         var reference = Guid.NewGuid();
 
-        var first = await client.PostAsync("/api/creators", ValidEntry(reference));
-        var retry = await client.PostAsync("/api/creators", ValidEntry(reference));
-        var duplicate = await client.PostAsync("/api/creators", ValidEntry(Guid.NewGuid()));
+        var first = await client.PostAsync("/api/creators", ValidEntry(reference), ct);
+        var retry = await client.PostAsync("/api/creators", ValidEntry(reference), ct);
+        var duplicate = await client.PostAsync("/api/creators", ValidEntry(Guid.NewGuid()), ct);
 
         Assert.Equal(HttpStatusCode.Created, first.StatusCode);
         Assert.Equal(HttpStatusCode.Created, retry.StatusCode);
@@ -63,16 +65,17 @@ public sealed class ApiFlowTests
     {
         await using var factory = new TestApiFactory();
         using var client = factory.CreateHttpsClient();
+        var ct = TestContext.Current.CancellationToken;
 
         using var invalidEntry = ValidEntry(Guid.Empty);
-        var entryResponse = await client.PostAsync("/api/creators", invalidEntry);
+        var entryResponse = await client.PostAsync("/api/creators", invalidEntry, ct);
         Assert.Equal(HttpStatusCode.BadRequest, entryResponse.StatusCode);
         Assert.Equal("application/problem+json", entryResponse.Content.Headers.ContentType?.MediaType);
 
         var checkoutResponse = await client.PostAsJsonAsync("/api/payments/checkout", new
         {
             referenceId = Guid.NewGuid(), creatorId = Guid.NewGuid(), purpose = "creator-boost", amount = 1.001m, currency = "USD"
-        });
+        }, ct);
         Assert.Equal(HttpStatusCode.BadRequest, checkoutResponse.StatusCode);
     }
 
@@ -81,14 +84,15 @@ public sealed class ApiFlowTests
     {
         await using var factory = new TestApiFactory();
         using var client = factory.CreateHttpsClient();
+        var ct = TestContext.Current.CancellationToken;
         var missing = Guid.NewGuid();
 
-        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"/api/creators/{missing}")).StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, (await client.DeleteAsync($"/api/creators/{missing}")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"/api/creators/{missing}", ct)).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.DeleteAsync($"/api/creators/{missing}", ct)).StatusCode);
         var boost = await client.PostAsJsonAsync("/api/payments/checkout", new
         {
             referenceId = Guid.NewGuid(), creatorId = missing, purpose = "creator-boost", amount = 10m, currency = "USD"
-        });
+        }, ct);
         Assert.Equal(HttpStatusCode.NotFound, boost.StatusCode);
     }
 
@@ -97,9 +101,10 @@ public sealed class ApiFlowTests
     {
         await using var factory = new TestApiFactory(Environments.Production);
         using var client = factory.CreateHttpsClient();
+        var ct = TestContext.Current.CancellationToken;
 
-        Assert.Equal(HttpStatusCode.MethodNotAllowed, (await client.PostAsync("/api/creators", ValidEntry(Guid.NewGuid()))).StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, (await client.PostAsJsonAsync("/api/payments/checkout", new { })).StatusCode);
+        Assert.Equal(HttpStatusCode.MethodNotAllowed, (await client.PostAsync("/api/creators", ValidEntry(Guid.NewGuid()), ct)).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.PostAsJsonAsync("/api/payments/checkout", new { }, ct)).StatusCode);
     }
 
     private static MultipartFormDataContent ValidEntry(Guid reference)
