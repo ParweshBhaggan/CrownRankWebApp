@@ -29,6 +29,12 @@ public sealed class Creator
     public Guid? EntryReference { get; private set; }
     public decimal OpeningAmount { get; private set; }
     public void PrepareEntry(Guid reference, decimal amount) { Money.Validate(amount); EntryReference = reference; OpeningAmount = amount; }
+    public void RecoverEntry(Guid reference)
+    {
+        if (_contributions.Count > 0) throw new InvalidOperationException("A confirmed entry cannot be reassigned.");
+        if (reference == Guid.Empty) throw new ArgumentException("An entry reference is required.", nameof(reference));
+        EntryReference = reference;
+    }
     public void Hide() => IsHidden = true;
     public DateTimeOffset CreatedAt { get; private set; }
     public IReadOnlyCollection<SocialProfile> SocialProfiles => _socialProfiles;

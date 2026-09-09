@@ -40,6 +40,7 @@ public sealed class CreatorService(ICreatorRepository repository, IProfileImageS
                 throw new InvalidOperationException("Retry an entry using its original details and amount.");
             if (previous.Contributions.Count == 0)
             {
+                if (recoveredByUsername) previous.RecoverEntry(command.EntryReference);
                 await ConfirmOpeningContributionAsync(previous, command, cancellationToken);
                 await repository.SaveChangesAsync(cancellationToken);
             }

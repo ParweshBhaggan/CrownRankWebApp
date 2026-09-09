@@ -66,7 +66,10 @@ public sealed class BehaviorTests
         var command = new CreateCreatorCommand("Ada", "Lovelace", "ada", CreatorCategory.Technology,
             Guid.NewGuid(), [new(SocialPlatform.Instagram, "https://instagram.com/ada")], 10m, null, null, null, 0);
         var recovered = await service.CreateConfirmedAsync(command, Ct);
+        var retried = await service.CreateConfirmedAsync(command, Ct);
         Assert.Equal(creator.Id, recovered.Id);
+        Assert.Equal(creator.Id, retried.Id);
+        Assert.Equal(command.EntryReference, creator.EntryReference);
         Assert.Equal(10m, recovered.TotalContributed);
         Assert.Single(creator.Contributions);
     }
