@@ -13,7 +13,7 @@ test('visitor can navigate, enter the ranking, and Boost without an account', as
     'access-control-allow-methods': 'GET, POST, DELETE, OPTIONS',
     'access-control-allow-headers': 'content-type',
   }
-  await page.route('**/api/**', async route => {
+  await page.route('http://localhost:5080/api/**', async route => {
     const url = new URL(route.request().url())
     if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: corsHeaders })
     if (route.request().method() === 'POST' && url.pathname === '/api/creators') {
