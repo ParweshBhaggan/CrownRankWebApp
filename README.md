@@ -77,11 +77,13 @@ cd src/frontend
 npm test
 npm run lint
 npm run build
+npx playwright install chromium # first browser-test run only
+npm run test:e2e
 ```
 
-Backend behavior tests cover atomic entry confirmation, recovery of an older stranded entry, confirmation retries, Boost amounts, unconfirmed mock results, UTC ranking boundaries, ties, hiding without ledger deletion, and social URL validation. The application unit tests use an in-memory repository; PostgreSQL integration tests remain future work.
+Backend tests cover domain rules, atomic entry confirmation, interrupted-entry recovery, idempotent retries, decimal Boost amounts, unconfirmed mock results, UTC ranking boundaries, ties, hiding without ledger deletion, social URL safety, EF model constraints, and the complete development HTTP API flow. API tests replace persistence and external adapters inside the test host, so they never read or update the developer database. PostgreSQL concurrency tests remain future work.
 
-Frontend tests use Node's built-in test runner and TypeScript stripping, with no additional test dependency.
+Frontend tests are split into fast logic tests, Vitest/Testing Library component and API-adapter tests, and a Playwright browser journey. The browser journey uses intercepted API responses and covers navigation, entry registration, leaderboard refresh, mock Boost confirmation, and the no-account experience.
 
 ## Later work
 
