@@ -9,6 +9,7 @@ import { RankingList } from '../features/leaderboard/ui/RankingList'
 import { BoostDialog } from '../features/payments/ui/BoostDialog'
 import { appServices } from '../shared/config/appServices'
 import { formatCurrency } from '../shared/format/currency'
+import { archivedDateKeys, resolveDailyDate, todayKey } from '../features/leaderboard/application/dailyDates'
 
 function Layout({ children, onEnter }: { children: ReactNode; onEnter: () => void }) {
   const [menuOpen, setMenuOpen] = useState(false)
@@ -51,13 +52,9 @@ function Rankings({ ranked, onBoost }: { ranked: readonly RankedCreator[]; onBoo
   return <section className="page-shell"><BoardHeader eyebrow="All-time leaderboard" title="Global ranking" copy="The complete CrownRank board, ordered by total confirmed contributions." control={<CategoryFilter value={category} onChange={(next) => setParams(next === 'all' ? {} : { category: next })} />} /><RankingList creators={visible} onBoost={onBoost} /><nav className="pagination" aria-label="Ranking pages"><button disabled={page <= 1} onClick={() => setParams({ ...(category !== 'all' && { category }), page: String(page - 1) })}>← Previous</button><span>Page {Math.min(page,pages)} of {pages}</span><button disabled={page >= pages} onClick={() => setParams({ ...(category !== 'all' && { category }), page: String(page + 1) })}>Next →</button></nav></section>
 }
 
-const dateKey = (date: Date) => date.toISOString().slice(0, 10)
-const todayKey = () => dateKey(new Date())
-const archivedDateKeys = () => Array.from({ length: 14 }, (_, index) => { const date = new Date(); date.setUTCDate(date.getUTCDate() - index); return dateKey(date) })
 function Daily({ onBoost, onEnter, revision }: { revision: number; onBoost: (c: Creator) => void; onEnter: () => void }) {
   const { date } = useParams()
-  const validDate = date && /^\d{4}-\d{2}-\d{2}$/.test(date) && Number.isFinite(Date.parse(`${date}T00:00:00Z`)) && dateKey(new Date(`${date}T00:00:00Z`)) === date && date <= todayKey()
-  const selectedDate = validDate ? date : todayKey()
+  const selectedDate = resolveDailyDate(date)
   const isToday = selectedDate === todayKey()
   const [category, setCategory] = useState<CreatorCategory | 'all'>('all')
   const { creators, loading, error, retry } = useCreators(`/api/rankings/daily/${selectedDate}`, revision)

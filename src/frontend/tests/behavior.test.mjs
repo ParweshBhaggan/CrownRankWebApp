@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { parseAmount, formatCurrency } from '../src/shared/format/currency.ts'
 import { rankCreators } from '../src/features/leaderboard/application/rankCreators.ts'
 import { validateRankingEntry } from '../src/features/creator-entry/application/validateRankingEntry.ts'
+import { archivedDateKeys, resolveDailyDate, todayKey } from '../src/features/leaderboard/application/dailyDates.ts'
 
 test('decimal amounts retain cent precision and display in dollars', () => {
   assert.equal(parseAmount('12.50'), 12.5)
@@ -32,4 +33,13 @@ test('entry limits match the backend money and profile rules', () => {
   assert.ok(validateRankingEntry({ ...draft, firstName: 'a'.repeat(81) }).firstName)
   assert.ok(validateRankingEntry({ ...draft, socialLinks: Array(6).fill(draft.socialLinks[0]) }).socialLinks)
   assert.ok(validateRankingEntry({ ...draft, socialLinks: [draft.socialLinks[0], { ...draft.socialLinks[0], id: '2' }] }).socialLinks)
+})
+test('daily dates are UTC-stable and invalid or future archive routes fall back to today', () => {
+  const now = new Date('2026-03-01T00:30:00Z')
+  assert.equal(todayKey(now), '2026-03-01')
+  assert.deepEqual(archivedDateKeys(now, 3), ['2026-03-01', '2026-02-28', '2026-02-27'])
+  assert.equal(resolveDailyDate('2026-02-28', now), '2026-02-28')
+  for (const invalid of [undefined, '2026-02-30', '2026-03-02', 'not-a-date']) {
+    assert.equal(resolveDailyDate(invalid, now), '2026-03-01')
+  }
 })

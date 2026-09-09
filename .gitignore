@@ -6,6 +6,8 @@
 # Node
 **/node_modules/
 **/dist/
+**/test-results/
+**/playwright-report/
 *.tsbuildinfo
 vite.config.js
 vite.config.d.ts
@@ -26,4 +28,3 @@ uploads/
 /.vs/CrownRank.slnx/FileContentIndex
 /.vs/CrownRank.slnx/v18
 /.vs/CrownRank.slnx/config
-.vs/CrownRank.slnx/DesignTimeBuild/.dtbcache.v2

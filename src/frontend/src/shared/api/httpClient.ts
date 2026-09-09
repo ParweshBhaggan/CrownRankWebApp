@@ -1,7 +1,8 @@
-export const apiBaseUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:5080'
+export const apiBaseUrl = import.meta.env?.VITE_API_URL ?? 'http://localhost:5080'
 
 export class ApiError extends Error {
-  constructor(message: string, readonly status: number) { super(message) }
+  readonly status: number
+  constructor(message: string, status: number) { super(message); this.status = status }
 }
 
 export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
