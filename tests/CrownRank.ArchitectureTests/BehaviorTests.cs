@@ -18,20 +18,15 @@ public sealed class BehaviorTests
     }
 
     [Fact]
-    public async Task Entry_RemainsPrivateUntilMockConfirmation_AndRetryCreditsOnce()
+    public async Task Entry_IsCreatedAndMockConfirmedAtomically_AndRetryCreditsOnce()
     {
         var repository = new MemoryRepository();
-        var creators = new CreatorService(repository, new NoImages(), new Clock());
+        var creators = new CreatorService(repository, new NoImages(), new MockGateway(), new Clock());
         var reference = Guid.NewGuid();
         var command = new CreateCreatorCommand("Ada", "Lovelace", "ada", CreatorCategory.Technology,
             reference, [new(SocialPlatform.Instagram, "https://instagram.com/ada")], 12.50m, null, null, null, 0);
-        var entry = await creators.CreateAsync(command, Ct);
-        Assert.Empty(await creators.GetAllAsync(Ct));
-        Assert.Equal(entry.Id, (await creators.CreateAsync(command, Ct)).Id);
-        var checkout = new MockCheckoutService(repository, new MockGateway(), new Clock());
-        var request = new CheckoutRequest(entry.Id, 12.50m, "USD", "ranking-entry", Guid.NewGuid());
-        await checkout.CheckoutAsync(request, Ct);
-        await checkout.CheckoutAsync(request, Ct);
+        var entry = await creators.CreateConfirmedAsync(command, Ct);
+        Assert.Equal(entry.Id, (await creators.CreateConfirmedAsync(command, Ct)).Id);
         var published = Assert.Single(await creators.GetAllAsync(Ct));
         Assert.Equal(12.50m, published.TotalContributed);
         Assert.Single(repository.Items.Single().Contributions);
@@ -50,13 +45,30 @@ public sealed class BehaviorTests
     }
 
     [Fact]
-    public async Task FailedMock_DoesNotPublishOrCredit()
+    public async Task FailedEntryMock_DoesNotRegisterOrCreditCreator()
     {
-        var creator = NewCreator(); creator.PrepareEntry(Guid.NewGuid(), 10m);
-        var repository = new MemoryRepository(); repository.Items.Add(creator);
-        var service = new MockCheckoutService(repository, new MockGateway(false), new Clock());
-        var result = await service.CheckoutAsync(new(creator.Id, 10m, "USD", "ranking-entry", Guid.NewGuid()), Ct);
-        Assert.False(result.Confirmed); Assert.Empty(creator.Contributions);
+        var repository = new MemoryRepository();
+        var service = new CreatorService(repository, new NoImages(), new MockGateway(false), new Clock());
+        var command = new CreateCreatorCommand("Ada", "Lovelace", "ada", CreatorCategory.Technology,
+            Guid.NewGuid(), [new(SocialPlatform.Instagram, "https://instagram.com/ada")], 10m, null, null, null, 0);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.CreateConfirmedAsync(command, Ct));
+        Assert.Empty(repository.Items);
+    }
+
+    [Fact]
+    public async Task Retry_RecoversMatchingStrandedPendingCreator()
+    {
+        var creator = NewCreator();
+        creator.PrepareEntry(Guid.NewGuid(), 10m);
+        var repository = new MemoryRepository();
+        repository.Items.Add(creator);
+        var service = new CreatorService(repository, new NoImages(), new MockGateway(), new Clock());
+        var command = new CreateCreatorCommand("Ada", "Lovelace", "ada", CreatorCategory.Technology,
+            Guid.NewGuid(), [new(SocialPlatform.Instagram, "https://instagram.com/ada")], 10m, null, null, null, 0);
+        var recovered = await service.CreateConfirmedAsync(command, Ct);
+        Assert.Equal(creator.Id, recovered.Id);
+        Assert.Equal(10m, recovered.TotalContributed);
+        Assert.Single(creator.Contributions);
     }
 
     [Fact]
@@ -67,7 +79,7 @@ public sealed class BehaviorTests
         second.AddContribution(20m, ContributionKind.RankUp, Now.AddHours(-2), "second");
         first.AddContribution(5m, ContributionKind.Boost, new(2026, 9, 9, 0, 0, 0, TimeSpan.Zero), "tomorrow");
         var repository = new MemoryRepository(); repository.Items.AddRange([first, second]);
-        var service = new CreatorService(repository, new NoImages(), new Clock());
+        var service = new CreatorService(repository, new NoImages(), new MockGateway(), new Clock());
         var daily = await service.GetDailyAsync(new(2026, 9, 8), Ct);
         Assert.Equal(second.Id, daily[0].Id); Assert.Equal(20m, daily[1].TotalContributed);
         Assert.Single(await service.GetDailyAsync(new(2026, 9, 9), Ct));
@@ -80,7 +92,9 @@ public sealed class BehaviorTests
     public void SocialLinks_MustMatchTheSelectedPlatform()
     {
         Assert.Throws<ArgumentException>(() => NewCreator().AddSocialProfile(SocialPlatform.Instagram, "https://instagram.com.evil.example/person"));
-        NewCreator().AddSocialProfile(SocialPlatform.Instagram, "https://www.instagram.com/person");
+        var creator = NewCreator();
+        creator.AddSocialProfile(SocialPlatform.Instagram, "https://www.instagram.com/person");
+        Assert.Throws<ArgumentException>(() => creator.AddSocialProfile(SocialPlatform.Instagram, "https://instagram.com/other"));
     }
 
     private static Creator NewCreator() => new(Guid.NewGuid(), "Ada", "Lovelace", "ada", CreatorCategory.Technology, "/avatar.svg", null, Now.AddDays(-10));
@@ -99,7 +113,7 @@ public sealed class BehaviorTests
         public List<Creator> Items { get; } = [];
         public Task<IReadOnlyList<Creator>> GetAllAsync(CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<Creator>>(Items);
         public Task<Creator?> GetByIdAsync(Guid id, CancellationToken cancellationToken) => Task.FromResult(Items.SingleOrDefault(x => x.Id == id));
-        public Task<Creator?> GetForUpdateAsync(Guid id, CancellationToken cancellationToken) => GetByIdAsync(id, cancellationToken);
+        public Task<Creator?> GetByUsernameAsync(string username, CancellationToken cancellationToken) => Task.FromResult(Items.SingleOrDefault(x => x.Username == username));
         public Task<bool> UsernameExistsAsync(string username, CancellationToken cancellationToken) => Task.FromResult(Items.Any(x => x.Username == username));
         public Task<Creator?> GetByEntryReferenceAsync(Guid reference, CancellationToken cancellationToken) => Task.FromResult(Items.SingleOrDefault(x => x.EntryReference == reference));
         public Task<Contribution?> GetContributionAsync(string reference, CancellationToken cancellationToken) => Task.FromResult(Items.SelectMany(x => x.Contributions).SingleOrDefault(x => x.PaymentReference == reference));

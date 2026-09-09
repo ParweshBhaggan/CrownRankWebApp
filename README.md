@@ -4,13 +4,13 @@ CrownRank is a fan-powered creator leaderboard built with React, TypeScript, ASP
 
 ## Current local flow
 
-1. Enter Ranking submits the complete profile and optional image to the API as a pending entry.
-2. The existing mock-payment approach confirms a simulated checkout through the backend development adapter. No payment provider is contacted and no money is charged.
-3. Confirmation records a contribution and makes the creator visible.
+1. Enter Ranking submits the complete profile and optional image to the API.
+2. The backend mock confirms the opening contribution and saves the creator and contribution together. No payment provider is contacted and no money is charged.
+3. A matching pending entry left by an older interrupted request is completed on retry.
 4. Boost records another simulated contribution against an existing visible creator.
 5. Boards refresh after confirmation and explicit retries. Window focus does not restart in-flight requests; this avoids repeated cancellations while switching between the browser and debugger. Read requests time out with a retry message after 30 seconds.
 
-Entry and checkout references are stable across retries in the current dialog. Closing and reopening the entry dialog preserves an unfinished attempt during the current page session. A full browser reload discards that in-memory draft; abandoned pending entries currently reserve their usernames and require local cleanup. Real checkout recovery, expiry, and cancellation screens remain future work.
+Entry references are stable across retries in the current dialog. A new request with the same matching username can also recover a stranded pending entry created by the earlier two-step implementation.
 
 All creator mutation and mock checkout routes are registered only in Development. There is no login, registration, admin UI, Stripe integration, deployment, or container work in this change.
 
@@ -20,7 +20,7 @@ Prerequisites: .NET 10 SDK, Node.js 22.18+ (or Node.js 24), and local PostgreSQL
 
 Set `ConnectionStrings:Database` using .NET user secrets or environment variables. The API defaults to `http://localhost:5080`; the frontend defaults to `http://localhost:5173`. Use `src/frontend/.env.example` for a browser-facing API URL override.
 
-**Create and apply your own migration before starting the updated API.** Startup never creates, migrates, or updates the database schema. Existing migration files and the model snapshot are deliberately untouched.
+Startup never creates, migrates, or updates the database schema. Migrations remain owner-managed.
 
 This model change removes `Location`, introduces pending-entry and hiding fields, and replaces minor-unit money properties with decimal dollar amounts. When preparing your migration against existing data, preserve and convert the old contribution amounts: `1250` cents must become `12.50` dollars. EF may generate drop/add operations for renamed properties; review them before applying the migration. Do not reinterpret cents as whole dollars or discard the ledger unintentionally.
 
@@ -51,9 +51,9 @@ Swagger is available at `http://localhost:5080/swagger` in Development. The data
 
 Entry uses multipart fields: `entryReference` (UUID), `firstName`, `lastName`, `username`, `category`, `initialAmount`, `socialProfilesJson`, and optional `image`.
 
-Mock checkout uses JSON: `referenceId` (UUID), `creatorId`, `purpose` (`ranking-entry` or `creator-boost`), `amount`, and `currency` (`USD`). Its response contains `id` and `confirmed`. Entry payments must match the pending opening amount. Boosts require a published, visible creator.
+Mock Boost checkout uses JSON: `referenceId` (UUID), `creatorId`, `purpose` (`creator-boost`), `amount`, and `currency` (`USD`). Its response contains `id` and `confirmed`. Entry mock confirmation is part of the multipart creator request so profile registration and its opening contribution are saved together.
 
-The backend serializes checkout writes per creator using a database row lock. A unique payment reference prevents duplicate credits; reusing a reference with different payment details is rejected. This mock orchestration must not be reused as proof of payment when integrating a real provider.
+A unique payment reference prevents duplicate credits; reusing a reference with different payment details is rejected. This mock orchestration must not be reused as proof of payment when integrating a real provider.
 
 ## Money and rankings
 
@@ -79,13 +79,13 @@ npm run lint
 npm run build
 ```
 
-Backend behavior tests cover pending publication, confirmation retries, Boost amounts, unconfirmed mock results, UTC ranking boundaries, ties, hiding without ledger deletion, and social URL validation. PostgreSQL row locking still needs verification against the local database; the application unit tests use an in-memory repository.
+Backend behavior tests cover atomic entry confirmation, recovery of an older stranded entry, confirmation retries, Boost amounts, unconfirmed mock results, UTC ranking boundaries, ties, hiding without ledger deletion, and social URL validation. The application unit tests use an in-memory repository; PostgreSQL integration tests remain future work.
 
 Frontend tests use Node's built-in test runner and TypeScript stripping, with no additional test dependency.
 
 ## Later work
 
-- Durable checkout recovery and cancellation/expiry for abandoned pending entries.
+- Durable recovery and cancellation/expiry for future real-provider checkout sessions.
 - Database integration tests for concurrent confirmations and entry conflicts.
 - Server-side pagination and aggregate queries as the dataset grows.
 - Real payment integration with verified, idempotent provider events only when deliberately enabled.

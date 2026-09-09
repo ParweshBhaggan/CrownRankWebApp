@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 import { creatorCategories, creatorCategoryLabels, type CreatorCategory, type SocialPlatform } from '../../leaderboard/domain/creator'
-import type { PaymentGateway } from '../../payments/domain/payment'
 import { ApiError } from '../../../shared/api/httpClient'
 import { createEntry } from '../data/createEntry'
 import { formatCurrency, parseAmount } from '../../../shared/format/currency'
@@ -14,10 +13,10 @@ const platforms: readonly { value: SocialPlatform; label: string }[] = [
   { value: 'website', label: 'Website' },
 ]
 
-interface Props { readonly isOpen: boolean; readonly paymentGateway: PaymentGateway; readonly onClose: (completed?: boolean) => void; readonly onConfirmed: () => void }
+interface Props { readonly isOpen: boolean; readonly onClose: (completed?: boolean) => void; readonly onConfirmed: () => void }
 const createSocialLink = (): SocialLinkInput => ({ id: crypto.randomUUID(), platform: 'instagram', url: '' })
 
-export function EnterRankingDialog({ isOpen, paymentGateway, onClose, onConfirmed }: Props) {
+export function EnterRankingDialog({ isOpen, onClose, onConfirmed }: Props) {
   const dialogRef = useRef<HTMLDialogElement>(null)
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
@@ -35,8 +34,6 @@ export function EnterRankingDialog({ isOpen, paymentGateway, onClose, onConfirme
   const [entryAttempted, setEntryAttempted] = useState(false)
   const submitting = useRef(false)
   const entryReference = useRef(crypto.randomUUID())
-  const checkoutReference = useRef(crypto.randomUUID())
-  const [pendingCreator, setPendingCreator] = useState<string>()
 
   useEffect(() => {
     const dialog = dialogRef.current
@@ -70,17 +67,10 @@ export function EnterRankingDialog({ isOpen, paymentGateway, onClose, onConfirme
     setSubmitError('')
     setIsSubmitting(true)
     try {
-      let creatorId = pendingCreator
-      if (!creatorId) {
-        const creator = await createEntry({ firstName, lastName, username, category, socialLinks, profileImage, contribution }, entryReference.current)
-        creatorId = creator.id
-        setPendingCreator(creator.id)
-      }
-      const session = await paymentGateway.createCheckout({ referenceId: checkoutReference.current, creatorId, purpose: 'ranking-entry', amount: contribution, currency: 'USD' })
-      if (!session.confirmed) throw new Error('The mock payment was not confirmed. You can retry.')
+      await createEntry({ firstName, lastName, username, category, socialLinks, profileImage, contribution }, entryReference.current)
       onConfirmed()
       setCheckoutReady(true)
-    } catch (error) { if (!pendingCreator && error instanceof ApiError && error.status < 500) setEntryAttempted(false); setSubmitError(error instanceof Error ? error.message : 'Could not submit your entry. Please retry.') } finally { submitting.current = false; setIsSubmitting(false) }
+    } catch (error) { if (error instanceof ApiError && error.status < 500) setEntryAttempted(false); setSubmitError(error instanceof Error ? error.message : 'Could not submit your entry. Please retry.') } finally { submitting.current = false; setIsSubmitting(false) }
   }
 
   return (
@@ -90,7 +80,7 @@ export function EnterRankingDialog({ isOpen, paymentGateway, onClose, onConfirme
         {checkoutReady ? (
           <div className="success-state" role="status"><span className="success-mark">✓</span><p className="eyebrow">Mock payment confirmed</p><h2>You’re ready for the crown.</h2><p>Your profile is now on the leaderboard. This was a mock payment; no money was charged.</p><button className="primary-button" type="button" onClick={closeDialog}>Back to leaderboard</button></div>
         ) : (
-          <form onSubmit={handleSubmit} noValidate><fieldset disabled={isSubmitting || entryAttempted || Boolean(pendingCreator)} className="entry-fields">
+          <form onSubmit={handleSubmit} noValidate><fieldset disabled={isSubmitting || entryAttempted} className="entry-fields">
             <header className="dialog-heading"><p className="eyebrow">Enter the ranking</p><h2>Put your name on the board.</h2><p>No account needed. Choose your amount, add your creator profile, and try the mock checkout.</p></header>
             <div className="form-layout">
               <div className="form-main">
@@ -110,4 +100,3 @@ export function EnterRankingDialog({ isOpen, paymentGateway, onClose, onConfirme
     </dialog>
   )
 }
-

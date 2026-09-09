@@ -1,4 +1,4 @@
-export type PaymentPurpose = 'ranking-entry' | 'creator-boost'
+export type PaymentPurpose = 'creator-boost'
 export interface CreateCheckoutRequest {
   readonly referenceId: string
   readonly creatorId: string

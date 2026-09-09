@@ -37,8 +37,12 @@ public sealed class Creator
     private readonly List<SocialProfile> _socialProfiles = [];
     private readonly List<Contribution> _contributions = [];
 
-    public void AddSocialProfile(SocialPlatform platform, string url) =>
+    public void AddSocialProfile(SocialPlatform platform, string url)
+    {
+        if (_socialProfiles.Any(x => x.Platform == platform))
+            throw new ArgumentException("Each social platform can be added only once.", nameof(platform));
         _socialProfiles.Add(new SocialProfile(Guid.NewGuid(), Id, platform, url));
+    }
 
     public void AddContribution(decimal amount, ContributionKind kind, DateTimeOffset confirmedAt, string reference)
     {
@@ -53,4 +57,3 @@ public sealed class Creator
         return normalized.Length <= maxLength ? normalized : throw new ArgumentException($"{name} is too long.", name);
     }
 }
-

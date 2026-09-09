@@ -12,7 +12,7 @@ public static class CreatorEndpoints
         var group = endpoints.MapGroup("/api/creators").WithTags("Creators");
         group.MapGet("/", GetAll).WithName("GetCreators").WithSummary("Returns all creators with confirmed global and current UTC-day scores.");
         group.MapGet("/{id:guid}", GetById).WithName("GetCreator");
-        if (development) group.MapPost("/", Create).WithName("CreateCreator").WithSummary("Creates a pending development entry and processes its image.").DisableAntiforgery();
+        if (development) group.MapPost("/", Create).WithName("CreateCreator").WithSummary("Creates and mock-confirms a development entry atomically.").DisableAntiforgery();
         if (development) group.MapDelete("/{id:guid}", Delete).WithName("DeleteCreator").WithDescription("Development only: hide the public profile while retaining its contribution ledger.");
         endpoints.MapGet("/api/rankings/daily/{date}", async (DateOnly date, CreatorService service, CancellationToken cancellationToken) =>
             Results.Ok(await service.GetDailyAsync(date, cancellationToken))).WithTags("Rankings").WithName("GetDailyRanking");
@@ -37,7 +37,7 @@ public static class CreatorEndpoints
             var command = new CreateCreatorCommand(request.FirstName, request.LastName, request.Username, ParseCategory(request.Category), request.EntryReference,
                 profiles.Select(x => new SocialProfileInput(ParsePlatform(x.Platform), x.Url)).ToList(), request.InitialAmount,
                 imageStream, request.Image?.FileName, request.Image?.ContentType, request.Image?.Length ?? 0);
-            var creator = await service.CreateAsync(command, cancellationToken);
+            var creator = await service.CreateConfirmedAsync(command, cancellationToken);
             return Results.Created($"/api/creators/{creator.Id}", creator);
         }
         catch (JsonException) { return Results.ValidationProblem(new Dictionary<string, string[]> { ["socialProfiles"] = ["Social profiles must be valid JSON."] }); }
@@ -77,4 +77,3 @@ public sealed class CreateCreatorRequest
     public IFormFile? Image { get; init; }
 }
 public sealed record SocialProfileRequest(string Platform, string Url);
-

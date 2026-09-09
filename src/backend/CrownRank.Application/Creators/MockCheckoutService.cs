@@ -9,9 +9,10 @@ public sealed class MockCheckoutService(ICreatorRepository repository, IPaymentG
     {
         Money.Validate(request.Amount);
         if (request.ReferenceId == Guid.Empty) throw new ArgumentException("A checkout reference is required.");
-        var kind = request.Purpose switch { "ranking-entry" => ContributionKind.RankUp, "creator-boost" => ContributionKind.Boost, _ => throw new ArgumentException("Unknown checkout purpose.") };
+        if (request.Purpose != "creator-boost") throw new ArgumentException("Only creator Boosts use this checkout endpoint.");
+        var kind = ContributionKind.Boost;
         if (request.Currency != "USD") throw new ArgumentException("Only USD is supported.");
-        var creator = await repository.GetForUpdateAsync(request.CreatorId, cancellationToken)
+        var creator = await repository.GetByIdAsync(request.CreatorId, cancellationToken)
             ?? throw new KeyNotFoundException("Creator not found.");
         var reference = $"mock-{request.ReferenceId:N}";
         var existing = await repository.GetContributionAsync(reference, cancellationToken);
@@ -22,9 +23,7 @@ public sealed class MockCheckoutService(ICreatorRepository repository, IPaymentG
             return new CheckoutSession(reference, true);
         }
         if (creator.IsHidden) throw new KeyNotFoundException("Creator not found.");
-        if (kind == ContributionKind.RankUp && (creator.Contributions.Count > 0 || creator.OpeningAmount != request.Amount))
-            throw new InvalidOperationException("The entry is already confirmed or the opening amount does not match.");
-        if (kind == ContributionKind.Boost && creator.Contributions.Count == 0)
+        if (creator.Contributions.Count == 0)
             throw new InvalidOperationException("Only published creators can receive a Boost.");
         var session = await gateway.CreateCheckoutAsync(request, cancellationToken);
         if (!session.Confirmed) return session;

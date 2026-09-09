@@ -31,4 +31,5 @@ test('entry limits match the backend money and profile rules', () => {
   assert.ok(validateRankingEntry({ ...draft, contribution: 1.001 }).contribution)
   assert.ok(validateRankingEntry({ ...draft, firstName: 'a'.repeat(81) }).firstName)
   assert.ok(validateRankingEntry({ ...draft, socialLinks: Array(6).fill(draft.socialLinks[0]) }).socialLinks)
+  assert.ok(validateRankingEntry({ ...draft, socialLinks: [draft.socialLinks[0], { ...draft.socialLinks[0], id: '2' }] }).socialLinks)
 })
