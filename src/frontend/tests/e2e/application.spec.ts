@@ -8,22 +8,28 @@ const ada = {
 
 test('visitor can navigate, enter the ranking, and Boost without an account', async ({ page }) => {
   const creators = [{ ...ada }]
+  const corsHeaders = {
+    'access-control-allow-origin': 'http://127.0.0.1:5173',
+    'access-control-allow-methods': 'GET, POST, DELETE, OPTIONS',
+    'access-control-allow-headers': 'content-type',
+  }
   await page.route('**/api/**', async route => {
     const url = new URL(route.request().url())
+    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: corsHeaders })
     if (route.request().method() === 'POST' && url.pathname === '/api/creators') {
       const added = { ...ada, id: 'creator-2', username: 'grace', firstName: 'Grace', lastName: 'Hopper', displayName: 'Grace Hopper', totalContributed: 12.5, dailyContributed: 12.5 }
       creators.unshift(added)
-      return route.fulfill({ json: added, status: 201 })
+      return route.fulfill({ json: added, status: 201, headers: corsHeaders })
     }
     if (route.request().method() === 'POST' && url.pathname === '/api/payments/checkout') {
       const payload = route.request().postDataJSON()
       const creator = creators.find(item => item.id === payload.creatorId)!
       creator.totalContributed += payload.amount
       creator.dailyContributed += payload.amount
-      return route.fulfill({ json: { id: `mock-${payload.referenceId}`, confirmed: true } })
+      return route.fulfill({ json: { id: `mock-${payload.referenceId}`, confirmed: true }, headers: corsHeaders })
     }
-    if (url.pathname === '/api/creators' || url.pathname.startsWith('/api/rankings/daily/')) return route.fulfill({ json: creators })
-    return route.fulfill({ status: 404 })
+    if (url.pathname === '/api/creators' || url.pathname.startsWith('/api/rankings/daily/')) return route.fulfill({ json: creators, headers: corsHeaders })
+    return route.fulfill({ status: 404, headers: corsHeaders })
   })
 
   await page.goto('/')
