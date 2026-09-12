@@ -19,11 +19,13 @@ internal sealed class TestApiFactory(string environment = "Development") : WebAp
         builder.ConfigureServices(services =>
         {
             services.RemoveAll<ICreatorRepository>();
+            services.RemoveAll<IPendingRankingEntryRepository>();
             services.RemoveAll<IPaymentGateway>();
             services.RemoveAll<IProfileImageService>();
             services.RemoveAll<TimeProvider>();
             services.AddSingleton(Store);
             services.AddSingleton<ICreatorRepository>(Store);
+            services.AddSingleton<IPendingRankingEntryRepository>(Store);
             services.AddSingleton<IPaymentGateway>(Store);
             services.AddSingleton<IProfileImageService>(Store);
             services.AddSingleton<TimeProvider>(Store.Clock);
@@ -36,9 +38,10 @@ internal sealed class TestApiFactory(string environment = "Development") : WebAp
     });
 }
 
-internal sealed class ApiStore : ICreatorRepository, IPaymentGateway, IProfileImageService
+internal sealed class ApiStore : ICreatorRepository, IPendingRankingEntryRepository, IPaymentGateway, IProfileImageService
 {
     internal List<Creator> Creators { get; } = [];
+    internal List<PendingRankingEntry> PendingEntries { get; } = [];
     internal FixedApiClock Clock { get; } = new();
     internal List<CheckoutRequest> CheckoutRequests { get; } = [];
 
@@ -49,7 +52,15 @@ internal sealed class ApiStore : ICreatorRepository, IPaymentGateway, IProfileIm
     public Task<Creator?> GetByEntryReferenceAsync(Guid reference, CancellationToken cancellationToken) => Task.FromResult(Creators.SingleOrDefault(x => x.EntryReference == reference));
     public Task<Contribution?> GetContributionAsync(string reference, CancellationToken cancellationToken) => Task.FromResult(Creators.SelectMany(x => x.Contributions).SingleOrDefault(x => x.PaymentReference == reference));
     public Task AddAsync(Creator creator, CancellationToken cancellationToken) { Creators.Add(creator); return Task.CompletedTask; }
+    public void Remove(Creator creator) => Creators.Remove(creator);
     public Task SaveChangesAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+    public Task<PendingRankingEntry?> GetByReferenceAsync(Guid referenceId, CancellationToken cancellationToken) =>
+        Task.FromResult(PendingEntries.SingleOrDefault(x => x.ReferenceId == referenceId));
+    public Task<PendingRankingEntry?> GetByUsernameAsync(string username, CancellationToken cancellationToken) =>
+        Task.FromResult(PendingEntries.SingleOrDefault(x => x.Username == username));
+    public Task AddAsync(PendingRankingEntry entry, CancellationToken cancellationToken) { PendingEntries.Add(entry); return Task.CompletedTask; }
+    public void Remove(PendingRankingEntry entry) => PendingEntries.Remove(entry);
 
     public Task<CheckoutSession> CreateCheckoutAsync(CheckoutRequest request, CancellationToken cancellationToken)
     {

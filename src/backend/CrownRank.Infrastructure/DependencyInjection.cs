@@ -35,6 +35,7 @@ public static class DependencyInjection
         services.Configure<ProfileImageOptions>(configuration.GetSection(ProfileImageOptions.SectionName));
         services.Configure<StripeOptions>(configuration.GetSection(StripeOptions.SectionName));
         services.AddScoped<ICreatorRepository, CreatorRepository>();
+        services.AddScoped<IPendingRankingEntryRepository, PendingRankingEntryRepository>();
         services.AddScoped<IProfileImageService, LocalProfileImageService>();
         if (string.Equals(configuration["Payments:Provider"], "Stripe", StringComparison.OrdinalIgnoreCase))
         {

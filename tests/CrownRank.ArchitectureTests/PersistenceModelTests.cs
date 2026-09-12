@@ -37,6 +37,18 @@ public sealed class PersistenceModelTests
     }
 
     [Fact]
+    public void Pending_checkout_is_separate_from_creator_and_contains_no_location_data()
+    {
+        using var context = Context();
+        var pending = context.Model.FindEntityType(typeof(PendingRankingEntry))!;
+        var properties = pending.GetProperties().Select(x => x.Name).ToList();
+
+        Assert.Contains(nameof(PendingRankingEntry.Name), properties);
+        Assert.DoesNotContain(properties, name => name.Contains("Location", StringComparison.OrdinalIgnoreCase));
+        Assert.Equal("pending_ranking_entries", pending.GetTableName());
+    }
+
+    [Fact]
     public void Idempotency_and_identity_columns_have_unique_indexes()
     {
         using var context = Context();

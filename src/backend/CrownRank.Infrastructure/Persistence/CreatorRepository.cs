@@ -21,6 +21,7 @@ public sealed class CreatorRepository(CrownRankDbContext dbContext) : ICreatorRe
         dbContext.Creators.Include(x => x.SocialProfiles).Include(x => x.Contributions).SingleOrDefaultAsync(x => x.EntryReference == reference, cancellationToken);
     public Task<Contribution?> GetContributionAsync(string reference, CancellationToken cancellationToken) =>
         dbContext.Set<Contribution>().AsNoTracking().SingleOrDefaultAsync(x => x.PaymentReference == reference, cancellationToken);
+    public void Remove(Creator creator) => dbContext.Creators.Remove(creator);
     public async Task SaveChangesAsync(CancellationToken cancellationToken)
     {
         try

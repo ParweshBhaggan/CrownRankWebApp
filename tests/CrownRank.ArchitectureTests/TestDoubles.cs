@@ -87,6 +87,35 @@ internal sealed class MemoryRepository : ICreatorRepository
         return Task.CompletedTask;
     }
 
+    public void Remove(Creator creator) => Items.Remove(creator);
+
+    public Task SaveChangesAsync(CancellationToken cancellationToken)
+    {
+        SaveCalls++;
+        return SaveFailure is null ? Task.CompletedTask : Task.FromException(SaveFailure);
+    }
+}
+
+internal sealed class MemoryPendingEntries : IPendingRankingEntryRepository
+{
+    public List<PendingRankingEntry> Items { get; } = [];
+    public int SaveCalls { get; private set; }
+    public Exception? SaveFailure { get; set; }
+
+    public Task<PendingRankingEntry?> GetByReferenceAsync(Guid referenceId, CancellationToken cancellationToken) =>
+        Task.FromResult(Items.SingleOrDefault(x => x.ReferenceId == referenceId));
+
+    public Task<PendingRankingEntry?> GetByUsernameAsync(string username, CancellationToken cancellationToken) =>
+        Task.FromResult(Items.SingleOrDefault(x => x.Username == username));
+
+    public Task AddAsync(PendingRankingEntry entry, CancellationToken cancellationToken)
+    {
+        Items.Add(entry);
+        return Task.CompletedTask;
+    }
+
+    public void Remove(PendingRankingEntry entry) => Items.Remove(entry);
+
     public Task SaveChangesAsync(CancellationToken cancellationToken)
     {
         SaveCalls++;

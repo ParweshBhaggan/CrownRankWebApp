@@ -7,6 +7,12 @@ public sealed class SocialProfile
     private SocialProfile() { }
     internal SocialProfile(Guid id, Guid creatorId, SocialPlatform platform, string url)
     {
+        Url = NormalizeUrl(platform, url);
+        Id = id; CreatorId = creatorId; Platform = platform;
+    }
+
+    internal static string NormalizeUrl(SocialPlatform platform, string url)
+    {
         if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps)
             throw new ArgumentException("A valid HTTPS social URL is required.", nameof(url));
         string[] hosts = platform switch
@@ -18,11 +24,10 @@ public sealed class SocialProfile
         if (url.Length > 500 || !string.IsNullOrEmpty(uri.UserInfo) ||
             (hosts.Length > 0 && !hosts.Any(host => uri.Host.Equals(host, StringComparison.OrdinalIgnoreCase) || uri.Host.EndsWith("." + host, StringComparison.OrdinalIgnoreCase))))
             throw new ArgumentException("The social URL must match the selected platform and contain no credentials.");
-        Id = id; CreatorId = creatorId; Platform = platform; Url = uri.ToString();
+        return uri.ToString();
     }
     public Guid Id { get; private set; }
     public Guid CreatorId { get; private set; }
     public SocialPlatform Platform { get; private set; }
     public string Url { get; private set; } = string.Empty;
 }
-

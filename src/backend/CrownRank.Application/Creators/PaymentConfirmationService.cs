@@ -5,6 +5,7 @@ namespace CrownRank.Application.Creators;
 
 public sealed class PaymentConfirmationService(
     ICreatorRepository repository,
+    IPendingRankingEntryRepository pendingEntries,
     TimeProvider timeProvider)
 {
     public async Task ConfirmAsync(PaymentConfirmation confirmation, CancellationToken cancellationToken)
@@ -29,17 +30,29 @@ public sealed class PaymentConfirmationService(
             return;
         }
 
-        var creator = kind == ContributionKind.RankUp
-            ? await repository.GetByEntryReferenceAsync(confirmation.ReferenceId, cancellationToken)
-            : await repository.GetByIdAsync(confirmation.CreatorId, cancellationToken);
-        if (creator is null || creator.Id != confirmation.CreatorId || creator.IsHidden)
+        if (kind == ContributionKind.RankUp)
+        {
+            var pending = await pendingEntries.GetByReferenceAsync(confirmation.ReferenceId, cancellationToken)
+                ?? throw new KeyNotFoundException("Pending ranking entry not found.");
+            if (pending.CreatorId != confirmation.CreatorId || pending.Amount != confirmation.Amount)
+                throw new InvalidOperationException("The confirmation does not match the pending ranking entry.");
+            if (await repository.UsernameExistsAsync(pending.Username, cancellationToken))
+                throw new InvalidOperationException("That username is already ranked.");
+
+            var creator = pending.Confirm(timeProvider.GetUtcNow(), confirmation.PaymentReference);
+            await repository.AddAsync(creator, cancellationToken);
+            pendingEntries.Remove(pending);
+            await repository.SaveChangesAsync(cancellationToken);
+            return;
+        }
+
+        var boostedCreator = await repository.GetByIdAsync(confirmation.CreatorId, cancellationToken);
+        if (boostedCreator is null || boostedCreator.IsHidden)
             throw new KeyNotFoundException("Creator not found.");
-        if (kind == ContributionKind.RankUp && creator.OpeningAmount != confirmation.Amount)
-            throw new InvalidOperationException("The confirmed amount does not match the pending entry.");
-        if (kind == ContributionKind.Boost && creator.Contributions.Count == 0)
+        if (boostedCreator.Contributions.Count == 0)
             throw new InvalidOperationException("Only published creators can receive a Boost.");
 
-        creator.AddContribution(confirmation.Amount, kind, timeProvider.GetUtcNow(), confirmation.PaymentReference);
+        boostedCreator.AddContribution(confirmation.Amount, kind, timeProvider.GetUtcNow(), confirmation.PaymentReference);
         await repository.SaveChangesAsync(cancellationToken);
     }
 }

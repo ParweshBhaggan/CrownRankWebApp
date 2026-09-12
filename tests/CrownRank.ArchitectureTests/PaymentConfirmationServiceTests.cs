@@ -13,21 +13,23 @@ public sealed class PaymentConfirmationServiceTests
     public async Task Signed_entry_confirmation_publishes_pending_creator_once()
     {
         var reference = Guid.NewGuid();
-        var creator = TestData.Creator();
-        creator.PrepareEntry(reference, 12.50m);
+        var creatorId = Guid.NewGuid();
         var repository = new MemoryRepository();
-        repository.Items.Add(creator);
-        var service = new PaymentConfirmationService(repository, new FixedClock());
+        var pendingEntries = new MemoryPendingEntries();
+        pendingEntries.Items.Add(Pending(reference, creatorId));
+        var service = new PaymentConfirmationService(repository, pendingEntries, new FixedClock());
         var confirmation = new PaymentConfirmation(
-            creator.Id, 12.50m, "USD", "ranking-entry", reference, $"stripe-{reference:N}");
+            creatorId, 12.50m, "USD", "ranking-entry", reference, $"stripe-{reference:N}");
 
         await service.ConfirmAsync(confirmation, Ct);
         await service.ConfirmAsync(confirmation, Ct);
 
+        var creator = Assert.Single(repository.Items);
         var contribution = Assert.Single(creator.Contributions);
         Assert.Equal(ContributionKind.RankUp, contribution.Kind);
         Assert.Equal(12.50m, contribution.Amount);
         Assert.Equal(1, repository.SaveCalls);
+        Assert.Empty(pendingEntries.Items);
     }
 
     [Fact]
@@ -38,7 +40,7 @@ public sealed class PaymentConfirmationServiceTests
         creator.AddContribution(10m, ContributionKind.RankUp, TestData.Now, "opening");
         var repository = new MemoryRepository();
         repository.Items.Add(creator);
-        var service = new PaymentConfirmationService(repository, new FixedClock());
+        var service = new PaymentConfirmationService(repository, new MemoryPendingEntries(), new FixedClock());
 
         await service.ConfirmAsync(new PaymentConfirmation(
             creator.Id, 2.50m, "USD", "creator-boost", reference, $"stripe-{reference:N}"), Ct);
@@ -51,17 +53,17 @@ public sealed class PaymentConfirmationServiceTests
     public async Task Confirmation_rejects_tampered_or_unpublishable_details()
     {
         var reference = Guid.NewGuid();
-        var pending = TestData.Creator();
-        pending.PrepareEntry(reference, 12.50m);
+        var creatorId = Guid.NewGuid();
         var repository = new MemoryRepository();
-        repository.Items.Add(pending);
-        var service = new PaymentConfirmationService(repository, new FixedClock());
+        var pendingEntries = new MemoryPendingEntries();
+        pendingEntries.Items.Add(Pending(reference, creatorId));
+        var service = new PaymentConfirmationService(repository, pendingEntries, new FixedClock());
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => service.ConfirmAsync(new PaymentConfirmation(
-            pending.Id, 99m, "USD", "ranking-entry", reference, $"stripe-{reference:N}"), Ct));
-        await Assert.ThrowsAsync<InvalidOperationException>(() => service.ConfirmAsync(new PaymentConfirmation(
-            pending.Id, 2.50m, "USD", "creator-boost", Guid.NewGuid(), "stripe-boost"), Ct));
-        Assert.Empty(pending.Contributions);
+            creatorId, 99m, "USD", "ranking-entry", reference, $"stripe-{reference:N}"), Ct));
+        await Assert.ThrowsAsync<KeyNotFoundException>(() => service.ConfirmAsync(new PaymentConfirmation(
+            creatorId, 2.50m, "USD", "creator-boost", Guid.NewGuid(), "stripe-boost"), Ct));
+        Assert.Empty(repository.Items);
     }
 
     [Fact]
@@ -77,4 +79,16 @@ public sealed class PaymentConfirmationServiceTests
         Assert.True((await service.GetAsync(reference, creator.Id, "ranking-entry", Ct)).Confirmed);
         Assert.False((await service.GetAsync(Guid.NewGuid(), creator.Id, "creator-boost", Ct)).Confirmed);
     }
+
+    private static PendingRankingEntry Pending(Guid reference, Guid creatorId) => new(
+        reference,
+        creatorId,
+        "Ada Lovelace",
+        "ada",
+        CreatorCategory.Technology,
+        12.50m,
+        "/avatar.svg",
+        null,
+        TestData.Now,
+        [(SocialPlatform.Instagram, "https://instagram.com/ada")]);
 }
