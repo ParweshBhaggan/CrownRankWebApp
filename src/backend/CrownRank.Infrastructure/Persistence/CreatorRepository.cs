@@ -12,13 +12,16 @@ public sealed class CreatorRepository(CrownRankDbContext dbContext) : ICreatorRe
             .Include(x => x.SocialProfiles).Include(x => x.Contributions)
             .ToListAsync(cancellationToken);
     public Task<Creator?> GetByIdAsync(Guid id, CancellationToken cancellationToken) =>
-        dbContext.Creators.Include(x => x.SocialProfiles).Include(x => x.Contributions).SingleOrDefaultAsync(x => x.Id == id, cancellationToken);
+        dbContext.Creators.AsSplitQuery().Include(x => x.SocialProfiles).Include(x => x.Contributions)
+            .SingleOrDefaultAsync(x => x.Id == id, cancellationToken);
     public Task<Creator?> GetByUsernameAsync(string username, CancellationToken cancellationToken) =>
-        dbContext.Creators.Include(x => x.SocialProfiles).Include(x => x.Contributions).SingleOrDefaultAsync(x => x.Username == username, cancellationToken);
+        dbContext.Creators.AsSplitQuery().Include(x => x.SocialProfiles).Include(x => x.Contributions)
+            .SingleOrDefaultAsync(x => x.Username == username, cancellationToken);
     public Task<bool> UsernameExistsAsync(string username, CancellationToken cancellationToken) => dbContext.Creators.AnyAsync(x => x.Username == username, cancellationToken);
     public Task AddAsync(Creator creator, CancellationToken cancellationToken) => dbContext.Creators.AddAsync(creator, cancellationToken).AsTask();
     public Task<Creator?> GetByEntryReferenceAsync(Guid reference, CancellationToken cancellationToken) =>
-        dbContext.Creators.Include(x => x.SocialProfiles).Include(x => x.Contributions).SingleOrDefaultAsync(x => x.EntryReference == reference, cancellationToken);
+        dbContext.Creators.AsSplitQuery().Include(x => x.SocialProfiles).Include(x => x.Contributions)
+            .SingleOrDefaultAsync(x => x.EntryReference == reference, cancellationToken);
     public Task<Contribution?> GetContributionAsync(string reference, CancellationToken cancellationToken) =>
         dbContext.Set<Contribution>().AsNoTracking().SingleOrDefaultAsync(x => x.PaymentReference == reference, cancellationToken);
     public void Remove(Creator creator) => dbContext.Creators.Remove(creator);
