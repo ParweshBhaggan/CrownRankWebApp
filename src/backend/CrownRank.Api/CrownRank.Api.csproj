@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
+    <UserSecretsId>c64a655e-7911-48f7-8e11-9d5f9797cbc3</UserSecretsId>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../CrownRank.Application/CrownRank.Application.csproj" />
