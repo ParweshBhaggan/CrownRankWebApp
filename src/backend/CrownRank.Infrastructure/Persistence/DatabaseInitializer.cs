@@ -6,8 +6,7 @@ namespace CrownRank.Infrastructure.Persistence;
 
 public static class DatabaseInitializer
 {
-    private static readonly string[] FirstNames = ["Maya", "Jordan", "Sofia", "Kai", "Amara", "Leo", "Nora", "Milo", "Luna", "Elias"];
-    private static readonly string[] LastNames = ["Reyes", "Blake", "Chen", "Morgan", "Patel", "Woods", "Rivera", "Stone", "Bennett", "Hart"];
+    private static readonly string[] Names = ["Maya Reyes", "Jordan Blake", "Sofia Chen", "Kai Morgan", "Amara Patel", "Leo Woods", "Nora Rivera", "Milo Stone", "Luna Bennett", "Elias Hart"];
 
     public static async Task InitializeDatabaseAsync(this IServiceProvider services, CancellationToken cancellationToken = default)
     {
@@ -18,8 +17,8 @@ public static class DatabaseInitializer
         var now = DateTimeOffset.UtcNow; var categories = Enum.GetValues<CreatorCategory>();
         for (var index = 0; index < 50; index++)
         {
-            var first = FirstNames[index % FirstNames.Length]; var last = LastNames[(index * 3) % LastNames.Length];
-            var creator = new Creator(Guid.NewGuid(), first, last, $"{first}{last}{index + 1}", categories[index % categories.Length],
+            var name = Names[index % Names.Length];
+            var creator = new Creator(Guid.NewGuid(), name, $"creator{index + 1}", categories[index % categories.Length],
                 $"https://i.pravatar.cc/1024?img={(index % 70) + 1}", null, now.AddDays(-index - 1));
             creator.AddSocialProfile(index % 4 == 0 ? SocialPlatform.Twitch : SocialPlatform.Instagram,
                 index % 4 == 0 ? $"https://twitch.tv/{creator.Username}" : $"https://instagram.com/{creator.Username}");
@@ -31,4 +30,3 @@ public static class DatabaseInitializer
         await db.SaveChangesAsync(cancellationToken);
     }
 }
-

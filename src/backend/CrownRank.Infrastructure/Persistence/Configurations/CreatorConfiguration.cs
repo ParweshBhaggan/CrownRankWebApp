@@ -10,8 +10,7 @@ internal sealed class CreatorConfiguration : IEntityTypeConfiguration<Creator>
     {
         builder.ToTable("creators");
         builder.HasKey(creator => creator.Id);
-        builder.Property(creator => creator.FirstName).HasMaxLength(80).IsRequired();
-        builder.Property(creator => creator.LastName).HasMaxLength(80).IsRequired();
+        builder.Property(creator => creator.Name).HasMaxLength(160).IsRequired();
         builder.Property(creator => creator.Username).HasMaxLength(50).IsRequired();
         builder.HasIndex(creator => creator.Username).IsUnique();
         builder.Property(creator => creator.Category).HasConversion<string>().HasMaxLength(40).IsRequired();
@@ -26,4 +25,3 @@ internal sealed class CreatorConfiguration : IEntityTypeConfiguration<Creator>
         builder.Navigation(creator => creator.Contributions).UsePropertyAccessMode(PropertyAccessMode.Field);
     }
 }
-

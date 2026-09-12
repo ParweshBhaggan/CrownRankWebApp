@@ -40,7 +40,8 @@ app.MapGet("/api/health", async Task<IResult> (CrownRankDbContext database, Canc
 })
     .WithName("HealthCheck");
 app.MapCreatorEndpoints(app.Environment.IsDevelopment());
-if (app.Environment.IsDevelopment()) app.MapPaymentEndpoints();
+if (app.Environment.IsDevelopment())
+    app.MapPaymentEndpoints(string.Equals(builder.Configuration["Payments:Provider"], "Stripe", StringComparison.OrdinalIgnoreCase));
 
 app.Run();
 

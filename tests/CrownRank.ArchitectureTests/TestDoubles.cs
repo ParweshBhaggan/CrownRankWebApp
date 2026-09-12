@@ -9,11 +9,11 @@ internal static class TestData
     internal static readonly DateTimeOffset Now = new(2026, 9, 8, 12, 0, 0, TimeSpan.Zero);
 
     internal static Creator Creator(string username = "ada", DateTimeOffset? createdAt = null) =>
-        new(Guid.NewGuid(), "Ada", "Lovelace", username, CreatorCategory.Technology,
+        new(Guid.NewGuid(), "Ada Lovelace", username, CreatorCategory.Technology,
             "/avatar.svg", null, createdAt ?? Now.AddDays(-10));
 
     internal static CreateCreatorCommand Command(Guid? reference = null, string username = "ada", decimal amount = 12.50m) =>
-        new("Ada", "Lovelace", username, CreatorCategory.Technology, reference ?? Guid.NewGuid(),
+        new("Ada Lovelace", username, CreatorCategory.Technology, reference ?? Guid.NewGuid(),
             [new(SocialPlatform.Instagram, "https://instagram.com/ada")], amount, null, null, null, 0);
 }
 

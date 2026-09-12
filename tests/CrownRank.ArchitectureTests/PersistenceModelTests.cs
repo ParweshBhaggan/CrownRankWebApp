@@ -31,6 +31,9 @@ public sealed class PersistenceModelTests
         using var context = Context();
         var properties = context.Model.FindEntityType(typeof(Creator))!.GetProperties().Select(x => x.Name);
         Assert.DoesNotContain(properties, name => name.Contains("Location", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(nameof(Creator.Name), properties);
+        Assert.DoesNotContain("FirstName", properties);
+        Assert.DoesNotContain("LastName", properties);
     }
 
     [Fact]
