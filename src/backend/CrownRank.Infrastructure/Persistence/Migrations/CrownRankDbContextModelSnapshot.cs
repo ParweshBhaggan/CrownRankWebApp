@@ -76,11 +76,6 @@ namespace CrownRank.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("EntryReference")
                         .HasColumnType("uuid");
 
-                    b.Property<string>("FirstName")
-                        .IsRequired()
-                        .HasMaxLength(80)
-                        .HasColumnType("character varying(80)");
-
                     b.Property<string>("ImageStorageKey")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
@@ -93,10 +88,10 @@ namespace CrownRank.Infrastructure.Persistence.Migrations
                     b.Property<bool>("IsHidden")
                         .HasColumnType("boolean");
 
-                    b.Property<string>("LastName")
+                    b.Property<string>("Name")
                         .IsRequired()
-                        .HasMaxLength(80)
-                        .HasColumnType("character varying(80)");
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
 
                     b.Property<decimal>("OpeningAmount")
                         .HasPrecision(18, 2)
