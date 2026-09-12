@@ -4,6 +4,7 @@ using System.Text.Json;
 using CrownRank.Api.Data;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Xunit;
 
 namespace CrownRank.ApiTests;
 
