@@ -11,7 +11,7 @@ export function RankingList({ creators, onBoost, compact = false }: Props) {
       <span className="rank-number">#{creator.rank}</span>
       <Link className="rank-creator" to={`/creators/${creator.id}`}>
         <img src={creator.imageUrl} alt="" />
-        <span><strong>{creator.firstName} {creator.lastName}</strong><small>@{creator.username}</small></span>
+        <span><strong>{creator.name}</strong><small>@{creator.username}</small></span>
       </Link>
       <span className="category-pill">{creatorCategoryLabels[creator.category]}</span>
       <strong className="rank-score">{formatCurrency(creator.totalContributed)}</strong>
@@ -19,4 +19,3 @@ export function RankingList({ creators, onBoost, compact = false }: Props) {
     </li>)}
   </ol>
 }
-

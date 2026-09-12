@@ -11,5 +11,6 @@ public interface ICreatorRepository
     Task AddAsync(Creator creator, CancellationToken cancellationToken);
     Task<Creator?> GetByEntryReferenceAsync(Guid reference, CancellationToken cancellationToken);
     Task<Contribution?> GetContributionAsync(string reference, CancellationToken cancellationToken);
+    void Remove(Creator creator);
     Task SaveChangesAsync(CancellationToken cancellationToken);
 }

@@ -6,8 +6,7 @@ const acceptedImageTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'im
 
 export function validateRankingEntry(draft: RankingEntryDraft): RankingEntryValidationErrors {
   const errors: RankingEntryValidationErrors = {}
-  if (draft.firstName.trim().length < 1 || draft.firstName.trim().length > 80) errors.firstName = 'Enter your first name.'
-  if (draft.lastName.trim().length < 1 || draft.lastName.trim().length > 80) errors.lastName = 'Enter your last name.'
+  if (draft.name.trim().length < 1 || draft.name.trim().length > 160) errors.name = 'Enter a name using no more than 160 characters.'
   if (!usernamePattern.test(draft.username.trim())) errors.username = 'Use 2–40 letters, numbers, dots, underscores, or dashes.'
   if (!Number.isFinite(parseAmount(String(draft.contribution)))) errors.contribution = 'Choose $1.00–$10,000.00 with at most two decimal places.'
   const linksAreValid = draft.socialLinks.length > 0 && draft.socialLinks.length <= 5 && draft.socialLinks.every((link) => {

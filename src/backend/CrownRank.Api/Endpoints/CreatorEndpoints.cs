@@ -12,7 +12,7 @@ public static class CreatorEndpoints
         var group = endpoints.MapGroup("/api/creators").WithTags("Creators");
         group.MapGet("/", GetAll).WithName("GetCreators").WithSummary("Returns all creators with confirmed global and current UTC-day scores.");
         group.MapGet("/{id:guid}", GetById).WithName("GetCreator");
-        if (development) group.MapPost("/", Create).WithName("CreateCreator").WithSummary("Creates and mock-confirms a development entry atomically.").DisableAntiforgery();
+        if (development) group.MapPost("/", Create).WithName("CreateCreator").WithSummary("Creates a pending entry and starts its configured checkout.").DisableAntiforgery();
         if (development) group.MapDelete("/{id:guid}", Delete).WithName("DeleteCreator").WithDescription("Development only: hide the public profile while retaining its contribution ledger.");
         endpoints.MapGet("/api/rankings/daily/{date}", async (DateOnly date, CreatorService service, CancellationToken cancellationToken) =>
             Results.Ok(await service.GetDailyAsync(date, cancellationToken))).WithTags("Rankings").WithName("GetDailyRanking");
@@ -25,20 +25,20 @@ public static class CreatorEndpoints
 
     private static async Task<IResult> Create([FromForm] CreateCreatorRequest request, CreatorService service, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(request.FirstName) || string.IsNullOrWhiteSpace(request.LastName) ||
+        if (string.IsNullOrWhiteSpace(request.Name) ||
             string.IsNullOrWhiteSpace(request.Username) || string.IsNullOrWhiteSpace(request.Category) || string.IsNullOrWhiteSpace(request.SocialProfilesJson))
-            return Results.ValidationProblem(new Dictionary<string, string[]> { ["request"] = ["First name, last name, username, category, and social profiles are required."] });
+            return Results.ValidationProblem(new Dictionary<string, string[]> { ["request"] = ["Name, username, category, and social profiles are required."] });
         try
         {
             var profiles = JsonSerializer.Deserialize<List<SocialProfileRequest>>(request.SocialProfilesJson, new JsonSerializerOptions(JsonSerializerDefaults.Web)) ?? [];
             if (profiles.Count is < 1 or > 5 || profiles.Any(x => x is null || string.IsNullOrWhiteSpace(x.Platform) || string.IsNullOrWhiteSpace(x.Url)))
                 throw new ArgumentException("Provide 1–5 complete social profiles.");
             using var imageStream = request.Image?.OpenReadStream();
-            var command = new CreateCreatorCommand(request.FirstName, request.LastName, request.Username, ParseCategory(request.Category), request.EntryReference,
+            var command = new CreateCreatorCommand(request.Name, request.Username, ParseCategory(request.Category), request.EntryReference,
                 profiles.Select(x => new SocialProfileInput(ParsePlatform(x.Platform), x.Url)).ToList(), request.InitialAmount,
                 imageStream, request.Image?.FileName, request.Image?.ContentType, request.Image?.Length ?? 0);
-            var creator = await service.CreateConfirmedAsync(command, cancellationToken);
-            return Results.Created($"/api/creators/{creator.Id}", creator);
+            var checkout = await service.StartEntryCheckoutAsync(command, cancellationToken);
+            return Results.Created($"/api/creators/{checkout.CreatorId}", checkout);
         }
         catch (JsonException) { return Results.ValidationProblem(new Dictionary<string, string[]> { ["socialProfiles"] = ["Social profiles must be valid JSON."] }); }
         catch (ArgumentException exception) { return Results.ValidationProblem(new Dictionary<string, string[]> { ["request"] = [exception.Message] }); }
@@ -67,8 +67,7 @@ public static class CreatorEndpoints
 
 public sealed class CreateCreatorRequest
 {
-    public required string FirstName { get; init; }
-    public required string LastName { get; init; }
+    public required string Name { get; init; }
     public required string Username { get; init; }
     public required string Category { get; init; }
     public Guid EntryReference { get; init; }

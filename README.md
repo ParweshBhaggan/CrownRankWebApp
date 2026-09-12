@@ -1,18 +1,18 @@
 # CrownRank
 
-CrownRank is a fan-powered creator leaderboard built with React, TypeScript, ASP.NET Core (.NET 10), EF Core, and PostgreSQL. Public users do not create accounts or log in. Creator profiles contain names, a username, category, social links, and an optional photo. Location is not collected or included in the active data model.
+CrownRank is a fan-powered creator leaderboard built with React, TypeScript, ASP.NET Core (.NET 10), EF Core, and PostgreSQL. Public users do not create accounts or log in. Creator profiles contain one name field, a username, category, social links, and an optional photo. Location is not collected or included in the active data model.
 
-## Current local flow
+## Local payment flow
 
 1. Enter Ranking submits the complete profile and optional image to the API.
-2. The backend mock confirms the opening contribution and saves the creator and contribution together. No payment provider is contacted and no money is charged.
-3. A matching pending entry left by an older interrupted request is completed on retry.
-4. Boost records another simulated contribution against an existing visible creator.
-5. Boards refresh after confirmation and explicit retries. Window focus does not restart in-flight requests; this avoids repeated cancellations while switching between the browser and debugger. Read requests time out with a retry message after 30 seconds.
+2. The backend saves a separate pending checkout record, not a creator/rank, then starts checkout with the configured provider.
+3. The default `Mock` provider confirms immediately for development and automated tests. The optional `Stripe` provider redirects to hosted Stripe Checkout.
+4. Stripe payments are recorded only after `/api/payments/webhook` verifies Stripe's signature and validates the Checkout Session metadata and total. That webhook atomically creates the creator, records the opening contribution, and removes the pending checkout record.
+5. The Stripe return page polls backend payment status while the webhook completes, then refreshes the ranking.
 
-Entry references are stable across retries in the current dialog. A new request with the same matching username can also recover a stranded pending entry created by the earlier two-step implementation.
+Entry and Boost references are stable across retries. Provider requests and contribution writes are idempotent, so retrying the same checkout does not add the contribution twice. Pending checkout records are stored separately and are never returned by creator or ranking endpoints.
 
-All creator mutation and mock checkout routes are registered only in Development. There is no login, registration, admin UI, Stripe integration, deployment, or container work in this change.
+All creator mutation and checkout routes remain registered only in Development. There is no login, registration, location collection, deployment, or container work in this change.
 
 ## Run locally
 
@@ -37,6 +37,32 @@ npm run dev
 
 Swagger is available at `http://localhost:5080/swagger` in Development. The database starts empty unless you explicitly enable `SeedData:Enabled` through configuration. Optional seeding inserts sample creators only into an empty database and requires an already updated schema.
 
+### Stripe sandbox
+
+The application remains on the mock provider unless Stripe is deliberately enabled. Store all three values in .NET user secrets; do not put keys in `appsettings.json` or commit them.
+
+```powershell
+dotnet user-secrets set "Stripe:SecretKey" "sk_test_..." `
+  --project src/backend/CrownRank.Api
+dotnet user-secrets set "Stripe:WebhookSecret" "whsec_..." `
+  --project src/backend/CrownRank.Api
+dotnet user-secrets set "Payments:Provider" "Stripe" `
+  --project src/backend/CrownRank.Api
+```
+
+Keep this running in a separate terminal while testing:
+
+```powershell
+stripe listen --forward-to http://localhost:5080/api/payments/webhook
+```
+
+The `whsec_...` value printed by that exact CLI listener must be the webhook secret stored above. Start the API and frontend, then use Stripe's test card `4242 4242 4242 4242`, any future expiry, and any CVC. Switch back to deterministic mock payments with:
+
+```powershell
+dotnet user-secrets set "Payments:Provider" "Mock" `
+  --project src/backend/CrownRank.Api
+```
+
 ## API contracts
 
 | Method | Route | Behavior |
@@ -46,18 +72,20 @@ Swagger is available at `http://localhost:5080/swagger` in Development. The data
 | GET | `/api/creators/{id}` | Visible creator details |
 | GET | `/api/rankings/daily/{date}` | Ranking for a UTC calendar date |
 | POST | `/api/creators` | Pending entry; Development only |
-| POST | `/api/payments/checkout` | Confirm a simulated contribution; Development only |
+| POST | `/api/payments/checkout` | Start a configured-provider Boost checkout; Development only |
+| GET | `/api/payments/status/{referenceId}` | Read webhook-confirmed payment status; Development only |
+| POST | `/api/payments/webhook` | Verify and process Stripe events when Stripe is enabled; Development only |
 | DELETE | `/api/creators/{id}` | Hide a public profile; retain its ledger; Development only |
 
-Entry uses multipart fields: `entryReference` (UUID), `firstName`, `lastName`, `username`, `category`, `initialAmount`, `socialProfilesJson`, and optional `image`.
+Entry uses multipart fields: `entryReference` (UUID), `name`, `username`, `category`, `initialAmount`, `socialProfilesJson`, and optional `image`.
 
-Mock Boost checkout uses JSON: `referenceId` (UUID), `creatorId`, `purpose` (`creator-boost`), `amount`, and `currency` (`USD`). Its response contains `id` and `confirmed`. Entry mock confirmation is part of the multipart creator request so profile registration and its opening contribution are saved together.
+Boost checkout uses JSON: `referenceId` (UUID), `creatorId`, `purpose` (`creator-boost`), `amount`, and `currency` (`USD`). Checkout responses contain `id`, `confirmed`, and an optional Stripe-hosted `url`. Entry responses contain `creatorId` and the same nested `session` contract.
 
-A unique payment reference prevents duplicate credits; reusing a reference with different payment details is rejected. This mock orchestration must not be reused as proof of payment when integrating a real provider.
+A unique internal payment reference prevents duplicate credits; reusing a reference with different payment details is rejected. A browser success redirect is never accepted as proof of payment.
 
 ## Money and rankings
 
-Money uses .NET `decimal`, PostgreSQL `numeric(18,2)`, and dollar-based API fields (`amount`, `initialAmount`, `totalContributed`, `dailyContributed`). The supported contribution range is $1.00–$10,000.00, with at most two decimal places. Inputs with fractional cents are rejected rather than rounded. Frontend input parsing uses cent precision internally, but the API and database represent decimal dollars.
+Money uses .NET `decimal`, PostgreSQL `numeric(18,2)`, and dollar-based API fields (`amount`, `initialAmount`, `totalContributed`, `dailyContributed`). The supported contribution range is $1.00–$10,000.00, with at most two decimal places. Inputs with fractional cents are rejected rather than rounded. The Stripe adapter converts a validated decimal to Stripe's required integer minor units only at the external API boundary; domain and stored values remain decimal dollars.
 
 The backend orders higher scores first, then the time the creator reached that score, then creator ID for deterministic exact ties. The frontend preserves that order. Category-filtered boards number positions within the category.
 
@@ -81,16 +109,15 @@ npx playwright install chromium # first browser-test run only
 npm run test:e2e
 ```
 
-Backend tests cover domain rules, atomic entry confirmation, interrupted-entry recovery, idempotent retries, decimal Boost amounts, unconfirmed mock results, UTC ranking boundaries, ties, hiding without ledger deletion, social URL safety, EF model constraints, and the complete development HTTP API flow. API tests replace persistence and external adapters inside the test host, so they never read or update the developer database. PostgreSQL concurrency tests remain future work.
+Backend tests cover domain rules, separation of pending checkouts from creators, legacy interrupted-entry cleanup, idempotent mock and webhook confirmations, decimal Boost amounts, UTC ranking boundaries, ties, hiding without ledger deletion, social URL safety, EF model constraints, payment status, and the complete development HTTP API flow. API tests replace persistence and external adapters inside the test host, so they never read or update the developer database. PostgreSQL concurrency tests remain future work.
 
-Frontend tests are split into fast logic tests, Vitest/Testing Library component and API-adapter tests, and a Playwright browser journey. The browser journey uses intercepted API responses and covers navigation, entry registration, leaderboard refresh, mock Boost confirmation, and the no-account experience.
+Frontend tests are split into fast logic tests, Vitest/Testing Library component and API-adapter tests, and a Playwright browser journey. They cover navigation, entry registration, leaderboard refresh, checkout contracts, webhook-status return handling, Boost confirmation, and the no-account experience.
 
 ## Later work
 
-- Durable recovery and cancellation/expiry for future real-provider checkout sessions.
+- Cleanup/expiry policy for abandoned pending Stripe entry sessions.
 - Database integration tests for concurrent confirmations and entry conflicts.
 - Server-side pagination and aggregate queries as the dataset grows.
-- Real payment integration with verified, idempotent provider events only when deliberately enabled.
 - Profile correction and moderation workflows, and the remaining pre-launch review of operator details, provider eligibility, and ImageSharp licensing.
 
 No license has been selected. All rights are reserved unless the repository owner adds one.

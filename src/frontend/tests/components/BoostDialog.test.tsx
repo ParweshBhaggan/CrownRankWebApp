@@ -5,7 +5,7 @@ import { BoostDialog } from '../../src/features/payments/ui/BoostDialog'
 import type { Creator } from '../../src/features/leaderboard/domain/creator'
 
 const creator = {
-  id: 'creator-1', username: 'ada', firstName: 'Ada', lastName: 'Lovelace', displayName: 'Ada Lovelace',
+  id: 'creator-1', username: 'ada', name: 'Ada Lovelace',
   category: 'technology', imageUrl: '/avatar.svg', socialProfiles: [], totalContributed: 10,
   dailyContributed: 10, joinedAt: '2026-09-01T00:00:00Z', scoreReachedAt: '2026-09-08T12:00:00Z',
 } satisfies Creator
@@ -19,7 +19,7 @@ describe('BoostDialog', () => {
 
     await user.clear(screen.getByLabelText('Boost amount'))
     await user.type(screen.getByLabelText('Boost amount'), '2.50')
-    await user.click(screen.getByRole('button', { name: /confirm mock payment/i }))
+    await user.click(screen.getByRole('button', { name: /continue to checkout/i }))
 
     await waitFor(() => expect(createCheckout).toHaveBeenCalledOnce())
     expect(createCheckout).toHaveBeenCalledWith(expect.objectContaining({
@@ -36,8 +36,8 @@ describe('BoostDialog', () => {
     const user = userEvent.setup()
     render(<BoostDialog creator={creator} gateway={{ createCheckout }} onClose={vi.fn()} onConfirmed={vi.fn()} />)
 
-    await user.click(screen.getByRole('button', { name: /confirm mock payment/i }))
-    expect(await screen.findByRole('alert')).toHaveTextContent(/not confirmed/i)
+    await user.click(screen.getByRole('button', { name: /continue to checkout/i }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(/could not be started/i)
     await user.click(screen.getByRole('button', { name: /retry/i }))
 
     await waitFor(() => expect(createCheckout).toHaveBeenCalledTimes(2))

@@ -19,9 +19,8 @@ public sealed class ApiFlowTests
         using var entryResponse = await client.PostAsync("/api/creators", ValidEntry(entryReference), ct);
         Assert.Equal(HttpStatusCode.Created, entryResponse.StatusCode);
         var created = await entryResponse.Content.ReadFromJsonAsync<JsonElement>(ct);
-        var creatorId = created.GetProperty("id").GetGuid();
-        Assert.Equal(12.50m, created.GetProperty("totalContributed").GetDecimal());
-        Assert.Equal("ada", created.GetProperty("username").GetString());
+        var creatorId = created.GetProperty("creatorId").GetGuid();
+        Assert.True(created.GetProperty("session").GetProperty("confirmed").GetBoolean());
 
         var global = await client.GetFromJsonAsync<JsonElement[]>("/api/creators", ct);
         Assert.Single(global!);
@@ -32,6 +31,8 @@ public sealed class ApiFlowTests
         var boost = new { referenceId = boostReference, creatorId, purpose = "creator-boost", amount = 2.50m, currency = "USD" };
         Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync("/api/payments/checkout", boost, ct)).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync("/api/payments/checkout", boost, ct)).StatusCode);
+        var status = await client.GetFromJsonAsync<JsonElement>($"/api/payments/status/{boostReference}?creatorId={creatorId}&purpose=creator-boost", ct);
+        Assert.True(status.GetProperty("confirmed").GetBoolean());
         global = await client.GetFromJsonAsync<JsonElement[]>("/api/creators", ct);
         Assert.Equal(15m, global![0].GetProperty("totalContributed").GetDecimal());
 
@@ -97,7 +98,7 @@ public sealed class ApiFlowTests
     }
 
     [Fact]
-    public async Task Mutation_and_mock_payment_routes_are_not_exposed_outside_development()
+    public async Task Mutation_and_payment_routes_are_not_exposed_outside_development()
     {
         await using var factory = new TestApiFactory(Environments.Production);
         using var client = factory.CreateHttpsClient();
@@ -111,8 +112,7 @@ public sealed class ApiFlowTests
     {
         var content = new MultipartFormDataContent();
         content.Add(new StringContent(reference.ToString()), "entryReference");
-        content.Add(new StringContent("Ada"), "firstName");
-        content.Add(new StringContent("Lovelace"), "lastName");
+        content.Add(new StringContent("Ada Lovelace"), "name");
         content.Add(new StringContent("Ada"), "username");
         content.Add(new StringContent("technology"), "category");
         content.Add(new StringContent("12.50"), "initialAmount");

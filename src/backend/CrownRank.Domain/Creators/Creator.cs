@@ -4,12 +4,11 @@ public sealed class Creator
 {
     private Creator() { }
 
-    public Creator(Guid id, string firstName, string lastName, string username, CreatorCategory category,
+    public Creator(Guid id, string name, string username, CreatorCategory category,
         string imageUrl, string? imageStorageKey, DateTimeOffset createdAt)
     {
         Id = id;
-        FirstName = Required(firstName, nameof(firstName), 80);
-        LastName = Required(lastName, nameof(lastName), 80);
+        Name = Required(name, nameof(name), 160);
         Username = Required(Required(username, nameof(username), 51).TrimStart('@'), nameof(username), 50).ToLowerInvariant();
         if (!System.Text.RegularExpressions.Regex.IsMatch(Username, @"^[a-z0-9._-]{2,40}$")) throw new ArgumentException("Use 2–40 letters, numbers, dots, underscores, or dashes.");
         Category = category;
@@ -19,8 +18,7 @@ public sealed class Creator
     }
 
     public Guid Id { get; private set; }
-    public string FirstName { get; private set; } = string.Empty;
-    public string LastName { get; private set; } = string.Empty;
+    public string Name { get; private set; } = string.Empty;
     public string Username { get; private set; } = string.Empty;
     public CreatorCategory Category { get; private set; }
     public string ImageUrl { get; private set; } = string.Empty;

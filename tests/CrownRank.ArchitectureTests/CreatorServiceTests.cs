@@ -9,20 +9,24 @@ public sealed class CreatorServiceTests
     private static readonly CancellationToken Ct = CancellationToken.None;
 
     [Fact]
-    public async Task Entry_is_confirmed_saved_and_mapped()
+    public async Task Entry_is_saved_and_mock_checkout_is_confirmed()
     {
         var repository = new MemoryRepository();
+        var pendingEntries = new MemoryPendingEntries();
         var gateway = new StubGateway();
-        var service = Service(repository, gateway: gateway);
+        var service = Service(repository, pendingEntries: pendingEntries, gateway: gateway);
 
-        var result = await service.CreateConfirmedAsync(TestData.Command(username: "@Ada"), Ct);
+        var result = await service.StartEntryCheckoutAsync(TestData.Command(username: "@Ada"), Ct);
 
-        Assert.Equal("ada", result.Username);
-        Assert.Equal("technology", result.Category);
-        Assert.Equal(12.50m, result.TotalContributed);
-        Assert.Single(result.SocialProfiles);
+        Assert.True(result.Session.Confirmed);
+        Assert.Equal(repository.Items.Single().Id, result.CreatorId);
+        Assert.Equal("ada", repository.Items.Single().Username);
+        Assert.Equal(12.50m, repository.Items.Single().Contributions.Sum(x => x.Amount));
+        Assert.Single(repository.Items.Single().SocialProfiles);
         Assert.Single(repository.Items);
         Assert.Equal(1, repository.SaveCalls);
+        Assert.Empty(pendingEntries.Items);
+        Assert.Equal(1, pendingEntries.SaveCalls);
         var checkout = Assert.Single(gateway.Requests);
         Assert.Equal("ranking-entry", checkout.Purpose);
         Assert.Equal("USD", checkout.Currency);
@@ -36,10 +40,10 @@ public sealed class CreatorServiceTests
         var service = Service(repository, gateway: gateway);
         var command = TestData.Command();
 
-        var first = await service.CreateConfirmedAsync(command, Ct);
-        var retry = await service.CreateConfirmedAsync(command, Ct);
+        var first = await service.StartEntryCheckoutAsync(command, Ct);
+        var retry = await service.StartEntryCheckoutAsync(command, Ct);
 
-        Assert.Equal(first.Id, retry.Id);
+        Assert.Equal(first.CreatorId, retry.CreatorId);
         Assert.Single(repository.Items.Single().Contributions);
         Assert.Single(gateway.Requests);
         Assert.Equal(1, repository.SaveCalls);
@@ -51,10 +55,10 @@ public sealed class CreatorServiceTests
         var repository = new MemoryRepository();
         var service = Service(repository);
         var command = TestData.Command();
-        await service.CreateConfirmedAsync(command, Ct);
+        await service.StartEntryCheckoutAsync(command, Ct);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            service.CreateConfirmedAsync(command with { InitialAmount = 99m }, Ct));
+            service.StartEntryCheckoutAsync(command with { InitialAmount = 99m }, Ct));
     }
 
     [Fact]
@@ -67,11 +71,11 @@ public sealed class CreatorServiceTests
         repository.Items.Add(creator);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            Service(repository).CreateConfirmedAsync(TestData.Command(username: "ADA"), Ct));
+            Service(repository).StartEntryCheckoutAsync(TestData.Command(username: "ADA"), Ct));
     }
 
     [Fact]
-    public async Task Matching_pending_creator_is_recovered_after_an_interrupted_old_flow()
+    public async Task Legacy_pending_creator_is_replaced_by_confirmed_creator()
     {
         var pending = TestData.Creator();
         pending.PrepareEntry(Guid.NewGuid(), 12.50m);
@@ -79,27 +83,33 @@ public sealed class CreatorServiceTests
         repository.Items.Add(pending);
         var command = TestData.Command();
 
-        var recovered = await Service(repository).CreateConfirmedAsync(command, Ct);
+        var recovered = await Service(repository).StartEntryCheckoutAsync(command, Ct);
 
-        Assert.Equal(pending.Id, recovered.Id);
-        Assert.Equal(command.EntryReference, pending.EntryReference);
-        Assert.Single(pending.Contributions);
+        Assert.NotEqual(pending.Id, recovered.CreatorId);
+        Assert.DoesNotContain(pending, repository.Items);
+        var confirmed = Assert.Single(repository.Items);
+        Assert.Equal(command.EntryReference, confirmed.EntryReference);
+        Assert.Single(confirmed.Contributions);
     }
 
     [Fact]
-    public async Task Unconfirmed_mock_payment_does_not_register_a_creator()
+    public async Task Unconfirmed_checkout_does_not_create_a_creator()
     {
         var repository = new MemoryRepository();
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            Service(repository, gateway: new StubGateway(false)).CreateConfirmedAsync(TestData.Command(), Ct));
+        var pendingEntries = new MemoryPendingEntries();
+        var result = await Service(repository, pendingEntries: pendingEntries, gateway: new StubGateway(false)).StartEntryCheckoutAsync(TestData.Command(), Ct);
+        Assert.False(result.Session.Confirmed);
         Assert.Empty(repository.Items);
+        Assert.Single(pendingEntries.Items);
+        Assert.Equal(result.CreatorId, pendingEntries.Items.Single().CreatorId);
         Assert.Equal(0, repository.SaveCalls);
     }
 
     [Fact]
     public async Task Stored_image_is_removed_when_entry_persistence_fails()
     {
-        var repository = new MemoryRepository { SaveFailure = new InvalidOperationException("database failed") };
+        var repository = new MemoryRepository();
+        var pendingEntries = new MemoryPendingEntries { SaveFailure = new InvalidOperationException("database failed") };
         var images = new RecordingImages();
         await using var stream = new MemoryStream([1, 2, 3]);
         var command = TestData.Command() with
@@ -108,7 +118,7 @@ public sealed class CreatorServiceTests
         };
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            Service(repository, images).CreateConfirmedAsync(command, Ct));
+            Service(repository, images, pendingEntries).StartEntryCheckoutAsync(command, Ct));
 
         Assert.Equal(1, images.SaveCalls);
         Assert.Equal(new[] { "avatar.webp" }, images.DeletedKeys);
@@ -123,7 +133,7 @@ public sealed class CreatorServiceTests
             .Select(index => new SocialProfileInput(SocialPlatform.Website, $"https://example.com/{index}"))
             .ToList();
         await Assert.ThrowsAsync<ArgumentException>(() =>
-            Service(new MemoryRepository()).CreateConfirmedAsync(TestData.Command() with { SocialProfiles = profiles }, Ct));
+            Service(new MemoryRepository()).StartEntryCheckoutAsync(TestData.Command() with { SocialProfiles = profiles }, Ct));
     }
 
     [Fact]
@@ -159,6 +169,15 @@ public sealed class CreatorServiceTests
         Assert.False(await service.DeleteAsync(Guid.NewGuid(), Ct));
     }
 
-    private static CreatorService Service(MemoryRepository repository, RecordingImages? images = null, StubGateway? gateway = null) =>
-        new(repository, images ?? new RecordingImages(), gateway ?? new StubGateway(), new FixedClock());
+    private static CreatorService Service(
+        MemoryRepository repository,
+        RecordingImages? images = null,
+        MemoryPendingEntries? pendingEntries = null,
+        StubGateway? gateway = null)
+    {
+        var pending = pendingEntries ?? new MemoryPendingEntries();
+        var clock = new FixedClock();
+        var confirmation = new PaymentConfirmationService(repository, pending, clock);
+        return new CreatorService(repository, pending, images ?? new RecordingImages(), gateway ?? new StubGateway(), confirmation, clock);
+    }
 }

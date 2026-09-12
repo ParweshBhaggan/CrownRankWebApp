@@ -2,8 +2,9 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { apiRequest, resolveApiAsset } from '../../src/shared/api/httpClient'
 import { createEntry } from '../../src/features/creator-entry/data/createEntry'
 import { ApiLeaderboardRepository } from '../../src/features/leaderboard/data/ApiLeaderboardRepository'
-import { MockPaymentGateway } from '../../src/features/payments/data/MockPaymentGateway'
+import { ApiPaymentGateway } from '../../src/features/payments/data/ApiPaymentGateway'
 import type { RankingEntryDraft } from '../../src/features/creator-entry/domain/rankingEntry'
+import { getPaymentStatus } from '../../src/features/payments/data/getPaymentStatus'
 
 const originalFetch = globalThis.fetch
 afterEach(() => { globalThis.fetch = originalFetch })
@@ -29,7 +30,7 @@ describe('frontend API adapters', () => {
       return Response.json({ id: 'creator-1' })
     }
     const draft = {
-      firstName: ' Ada ', lastName: ' Lovelace ', username: ' ada ', category: 'technology', contribution: 12.5,
+      name: ' Ada Lovelace ', username: ' ada ', category: 'technology', contribution: 12.5,
       socialLinks: [{ id: 'ui-only', platform: 'instagram', url: ' https://instagram.com/ada ' }],
     } satisfies RankingEntryDraft
 
@@ -39,8 +40,7 @@ describe('frontend API adapters', () => {
     expect(request?.init?.method).toBe('POST')
     const form = request?.init?.body as FormData
     expect(form.get('entryReference')).toBe('entry-reference')
-    expect(form.get('firstName')).toBe('Ada')
-    expect(form.get('lastName')).toBe('Lovelace')
+    expect(form.get('name')).toBe('Ada Lovelace')
     expect(form.get('username')).toBe('ada')
     expect(form.get('initialAmount')).toBe('12.50')
     expect(form.get('socialProfilesJson')).toBe('[{"platform":"instagram","url":"https://instagram.com/ada"}]')
@@ -71,7 +71,18 @@ describe('frontend API adapters', () => {
     }
     const payload = { referenceId: 'ref-1', creatorId: 'creator-1', purpose: 'creator-boost', amount: 2.5, currency: 'USD' } as const
 
-    await expect(new MockPaymentGateway().createCheckout(payload)).resolves.toEqual({ id: 'mock-1', confirmed: true })
+    await expect(new ApiPaymentGateway().createCheckout(payload)).resolves.toEqual({ id: 'mock-1', confirmed: true })
     expect(JSON.parse(body)).toEqual(payload)
+  })
+
+  it('reads webhook-confirmed payment status using encoded query parameters', async () => {
+    let url = ''
+    globalThis.fetch = async input => {
+      url = String(input)
+      return Response.json({ creatorId: 'creator-1', confirmed: true })
+    }
+
+    await expect(getPaymentStatus('ref-1', 'creator-1', 'creator-boost')).resolves.toEqual({ creatorId: 'creator-1', confirmed: true })
+    expect(url).toBe('http://localhost:5080/api/payments/status/ref-1?creatorId=creator-1&purpose=creator-boost')
   })
 })

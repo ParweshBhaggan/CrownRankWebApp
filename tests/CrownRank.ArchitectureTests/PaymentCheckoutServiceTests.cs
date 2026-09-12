@@ -5,7 +5,7 @@ using Xunit;
 
 namespace CrownRank.ArchitectureTests;
 
-public sealed class MockCheckoutServiceTests
+public sealed class PaymentCheckoutServiceTests
 {
     private static readonly CancellationToken Ct = CancellationToken.None;
 
@@ -50,7 +50,7 @@ public sealed class MockCheckoutServiceTests
     public async Task Checkout_rejects_missing_hidden_or_unpublished_creator()
     {
         var repository = new MemoryRepository();
-        var service = new MockCheckoutService(repository, new StubGateway(), new FixedClock());
+        var service = new PaymentCheckoutService(repository, new StubGateway(), new FixedClock());
         await Assert.ThrowsAsync<KeyNotFoundException>(() => service.CheckoutAsync(Request(Guid.NewGuid()), Ct));
 
         var unpublished = TestData.Creator("pending");
@@ -77,7 +77,7 @@ public sealed class MockCheckoutServiceTests
     private static CheckoutRequest Request(Guid creatorId) =>
         new(creatorId, 2.50m, "USD", "creator-boost", Guid.NewGuid());
 
-    private static (MockCheckoutService Service, Creator Creator, MemoryRepository Repository, StubGateway Gateway)
+    private static (PaymentCheckoutService Service, Creator Creator, MemoryRepository Repository, StubGateway Gateway)
         PublishedCreator(bool confirmed = true)
     {
         var creator = TestData.Creator();
@@ -85,6 +85,6 @@ public sealed class MockCheckoutServiceTests
         var repository = new MemoryRepository();
         repository.Items.Add(creator);
         var gateway = new StubGateway(confirmed);
-        return (new MockCheckoutService(repository, gateway, new FixedClock()), creator, repository, gateway);
+        return (new PaymentCheckoutService(repository, gateway, new FixedClock()), creator, repository, gateway);
     }
 }

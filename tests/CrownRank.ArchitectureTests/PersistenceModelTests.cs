@@ -31,6 +31,21 @@ public sealed class PersistenceModelTests
         using var context = Context();
         var properties = context.Model.FindEntityType(typeof(Creator))!.GetProperties().Select(x => x.Name);
         Assert.DoesNotContain(properties, name => name.Contains("Location", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(nameof(Creator.Name), properties);
+        Assert.DoesNotContain("FirstName", properties);
+        Assert.DoesNotContain("LastName", properties);
+    }
+
+    [Fact]
+    public void Pending_checkout_is_separate_from_creator_and_contains_no_location_data()
+    {
+        using var context = Context();
+        var pending = context.Model.FindEntityType(typeof(PendingRankingEntry))!;
+        var properties = pending.GetProperties().Select(x => x.Name).ToList();
+
+        Assert.Contains(nameof(PendingRankingEntry.Name), properties);
+        Assert.DoesNotContain(properties, name => name.Contains("Location", StringComparison.OrdinalIgnoreCase));
+        Assert.Equal("pending_ranking_entries", pending.GetTableName());
     }
 
     [Fact]

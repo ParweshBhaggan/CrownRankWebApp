@@ -21,13 +21,12 @@ public sealed class DomainBehaviorTests
         Money.Validate(decimal.Parse(value, System.Globalization.CultureInfo.InvariantCulture));
 
     [Fact]
-    public void Creator_normalizes_names_and_username()
+    public void Creator_normalizes_name_and_username()
     {
-        var creator = new Creator(Guid.NewGuid(), " Ada ", " Lovelace ", " @Ada.Dev ", CreatorCategory.Technology,
+        var creator = new Creator(Guid.NewGuid(), " Ada Lovelace ", " @Ada.Dev ", CreatorCategory.Technology,
             "/avatar.svg", null, TestData.Now);
 
-        Assert.Equal("Ada", creator.FirstName);
-        Assert.Equal("Lovelace", creator.LastName);
+        Assert.Equal("Ada Lovelace", creator.Name);
         Assert.Equal("ada.dev", creator.Username);
     }
 
@@ -37,7 +36,7 @@ public sealed class DomainBehaviorTests
     [InlineData("spaces are invalid")]
     [InlineData("emoji-👑")]
     public void Creator_rejects_invalid_usernames(string username) =>
-        Assert.Throws<ArgumentException>(() => new Creator(Guid.NewGuid(), "Ada", "Lovelace", username,
+        Assert.Throws<ArgumentException>(() => new Creator(Guid.NewGuid(), "Ada Lovelace", username,
             CreatorCategory.Technology, "/avatar.svg", null, TestData.Now));
 
     [Fact]

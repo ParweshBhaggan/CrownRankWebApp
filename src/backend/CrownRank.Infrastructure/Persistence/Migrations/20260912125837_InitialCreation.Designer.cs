@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CrownRank.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(CrownRankDbContext))]
-    [Migration("20260909094025_InitialCreation")]
+    [Migration("20260912125837_InitialCreation")]
     partial class InitialCreation
     {
         /// <inheritdoc />
@@ -79,11 +79,6 @@ namespace CrownRank.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("EntryReference")
                         .HasColumnType("uuid");
 
-                    b.Property<string>("FirstName")
-                        .IsRequired()
-                        .HasMaxLength(80)
-                        .HasColumnType("character varying(80)");
-
                     b.Property<string>("ImageStorageKey")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
@@ -96,10 +91,10 @@ namespace CrownRank.Infrastructure.Persistence.Migrations
                     b.Property<bool>("IsHidden")
                         .HasColumnType("boolean");
 
-                    b.Property<string>("LastName")
+                    b.Property<string>("Name")
                         .IsRequired()
-                        .HasMaxLength(80)
-                        .HasColumnType("character varying(80)");
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
 
                     b.Property<decimal>("OpeningAmount")
                         .HasPrecision(18, 2)

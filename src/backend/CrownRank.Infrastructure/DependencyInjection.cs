@@ -33,9 +33,19 @@ public static class DependencyInjection
                 });
         });
         services.Configure<ProfileImageOptions>(configuration.GetSection(ProfileImageOptions.SectionName));
+        services.Configure<StripeOptions>(configuration.GetSection(StripeOptions.SectionName));
         services.AddScoped<ICreatorRepository, CreatorRepository>();
+        services.AddScoped<IPendingRankingEntryRepository, PendingRankingEntryRepository>();
         services.AddScoped<IProfileImageService, LocalProfileImageService>();
-        services.AddScoped<IPaymentGateway, DevelopmentPaymentGateway>();
+        if (string.Equals(configuration["Payments:Provider"], "Stripe", StringComparison.OrdinalIgnoreCase))
+        {
+            services.AddScoped<IPaymentGateway, StripePaymentGateway>();
+            services.AddScoped<IPaymentWebhookVerifier, StripeWebhookVerifier>();
+        }
+        else
+        {
+            services.AddScoped<IPaymentGateway, DevelopmentPaymentGateway>();
+        }
         return services;
     }
 }
