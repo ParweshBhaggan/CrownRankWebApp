@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
@@ -23,6 +24,7 @@ internal sealed class TestApiFactory(string environment = "Development") : WebAp
         {
             services.RemoveAll<CrownRankDbContext>();
             services.RemoveAll<DbContextOptions<CrownRankDbContext>>();
+            services.RemoveAll<IDbContextOptionsConfiguration<CrownRankDbContext>>();
             services.RemoveAll<IProfileImageStore>();
             services.RemoveAll<TimeProvider>();
             services.AddSingleton(_connection);
