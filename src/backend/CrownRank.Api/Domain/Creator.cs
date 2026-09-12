@@ -32,8 +32,13 @@ public sealed class Creator
         Name = name;
         Username = username;
         Category = category;
-        SocialProfiles.Clear();
-        SocialProfiles.AddRange(profiles);
+        SocialProfiles.RemoveAll(existing => profiles.All(replacement => replacement.Platform != existing.Platform));
+        foreach (var profile in profiles)
+        {
+            var existing = SocialProfiles.SingleOrDefault(x => x.Platform == profile.Platform);
+            if (existing is null) SocialProfiles.Add(profile);
+            else existing.UpdateUrl(profile.Url);
+        }
     }
 
     public void Delete() => IsDeleted = true;
@@ -55,6 +60,8 @@ public sealed class SocialProfile
     public Guid CreatorId { get; private set; }
     public SocialPlatform Platform { get; private set; }
     public string Url { get; private set; } = string.Empty;
+
+    public void UpdateUrl(string url) => Url = url;
 }
 
 public sealed class Contribution

@@ -27,9 +27,8 @@ public sealed class ApiExceptionHandler(ILogger<ApiExceptionHandler> logger) : I
         if (problem.Status >= 500) logger.LogError(exception, "Unhandled API exception");
         else logger.LogInformation("API request rejected: {Detail}", problem.Detail);
 
-        context.Response.StatusCode = problem.Status!.Value;
-        context.Response.ContentType = "application/problem+json";
-        await context.Response.WriteAsJsonAsync(problem, cancellationToken);
+        await Results.Problem(statusCode: problem.Status, title: problem.Title, detail: problem.Detail)
+            .ExecuteAsync(context);
         return true;
     }
 }
