@@ -5,12 +5,12 @@ CrownRank is a fan-powered creator leaderboard built with React, TypeScript, ASP
 ## Local payment flow
 
 1. Enter Ranking submits the complete profile and optional image to the API.
-2. The backend saves the creator as pending and hidden, then starts checkout with the configured provider.
+2. The backend saves a separate pending checkout record, not a creator/rank, then starts checkout with the configured provider.
 3. The default `Mock` provider confirms immediately for development and automated tests. The optional `Stripe` provider redirects to hosted Stripe Checkout.
-4. Stripe payments are recorded only after `/api/payments/webhook` verifies Stripe's signature and validates the Checkout Session metadata and total.
+4. Stripe payments are recorded only after `/api/payments/webhook` verifies Stripe's signature and validates the Checkout Session metadata and total. That webhook atomically creates the creator, records the opening contribution, and removes the pending checkout record.
 5. The Stripe return page polls backend payment status while the webhook completes, then refreshes the ranking.
 
-Entry and Boost references are stable across retries. Provider requests and contribution writes are idempotent, so retrying the same checkout does not add the contribution twice. A pending creator has no contribution and is excluded from every public endpoint.
+Entry and Boost references are stable across retries. Provider requests and contribution writes are idempotent, so retrying the same checkout does not add the contribution twice. Pending checkout records are stored separately and are never returned by creator or ranking endpoints.
 
 All creator mutation and checkout routes remain registered only in Development. There is no login, registration, location collection, deployment, or container work in this change.
 
@@ -109,7 +109,7 @@ npx playwright install chromium # first browser-test run only
 npm run test:e2e
 ```
 
-Backend tests cover domain rules, pending entry visibility, interrupted-entry recovery, idempotent mock and webhook confirmations, decimal Boost amounts, UTC ranking boundaries, ties, hiding without ledger deletion, social URL safety, EF model constraints, payment status, and the complete development HTTP API flow. API tests replace persistence and external adapters inside the test host, so they never read or update the developer database. PostgreSQL concurrency tests remain future work.
+Backend tests cover domain rules, separation of pending checkouts from creators, legacy interrupted-entry cleanup, idempotent mock and webhook confirmations, decimal Boost amounts, UTC ranking boundaries, ties, hiding without ledger deletion, social URL safety, EF model constraints, payment status, and the complete development HTTP API flow. API tests replace persistence and external adapters inside the test host, so they never read or update the developer database. PostgreSQL concurrency tests remain future work.
 
 Frontend tests are split into fast logic tests, Vitest/Testing Library component and API-adapter tests, and a Playwright browser journey. They cover navigation, entry registration, leaderboard refresh, checkout contracts, webhook-status return handling, Boost confirmation, and the no-account experience.
 
