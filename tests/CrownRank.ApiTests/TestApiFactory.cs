@@ -57,7 +57,7 @@ internal sealed class ApiStore : ICreatorRepository, IPendingRankingEntryReposit
 
     public Task<PendingRankingEntry?> GetByReferenceAsync(Guid referenceId, CancellationToken cancellationToken) =>
         Task.FromResult(PendingEntries.SingleOrDefault(x => x.ReferenceId == referenceId));
-    public Task<PendingRankingEntry?> GetByUsernameAsync(string username, CancellationToken cancellationToken) =>
+    Task<PendingRankingEntry?> IPendingRankingEntryRepository.GetByUsernameAsync(string username, CancellationToken cancellationToken) =>
         Task.FromResult(PendingEntries.SingleOrDefault(x => x.Username == username));
     public Task AddAsync(PendingRankingEntry entry, CancellationToken cancellationToken) { PendingEntries.Add(entry); return Task.CompletedTask; }
     public void Remove(PendingRankingEntry entry) => PendingEntries.Remove(entry);
