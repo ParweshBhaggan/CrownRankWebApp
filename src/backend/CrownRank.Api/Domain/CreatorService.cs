@@ -81,6 +81,7 @@ public sealed class CreatorService(
             if (winner is not null && EntryMatches(winner, name, username, category, amount, socialProfiles))
                 return Map(winner, null);
             Conflict("That username or entry reference already exists.");
+            throw;
         }
         catch
         {
@@ -112,11 +113,13 @@ public sealed class CreatorService(
         {
             logger.LogWarning(exception, "Creator {CreatorId} changed during update", id);
             Conflict("The creator changed during this request. Reload and retry.");
+            throw;
         }
         catch (DbUpdateException exception)
         {
             logger.LogWarning(exception, "A creator update conflicted with another write");
             Conflict("That username already exists.");
+            throw;
         }
     }
 
@@ -135,6 +138,7 @@ public sealed class CreatorService(
         {
             logger.LogWarning(exception, "Creator {CreatorId} changed during delete", id);
             Conflict("The creator changed during this request. Reload and retry.");
+            throw;
         }
     }
 
@@ -178,6 +182,7 @@ public sealed class CreatorService(
                 winner.Kind == ContributionKind.Boost)
                 return new CheckoutSession(paymentReference, true);
             Conflict("This checkout reference was already used for different details.");
+            throw;
         }
     }
 
