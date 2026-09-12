@@ -1,19 +1,15 @@
-using CrownRank.Application.Abstractions;
-using CrownRank.Application.Creators;
+using CrownRank.Api.Contracts;
+using CrownRank.Api.Domain;
 
 namespace CrownRank.Api.Endpoints;
 
 public static class PaymentEndpoints
 {
-    public static IEndpointRouteBuilder MapPaymentEndpoints(this IEndpointRouteBuilder endpoints)
+    public static void MapPaymentEndpoints(this WebApplication app)
     {
-        endpoints.MapPost("/api/payments/checkout", async Task<IResult> (CheckoutRequest request, MockCheckoutService service, CancellationToken cancellationToken) =>
-        {
-            try { return Results.Ok(await service.CheckoutAsync(request, cancellationToken)); }
-            catch (ArgumentException ex) { return Results.ValidationProblem(new Dictionary<string, string[]> { ["request"] = [ex.Message] }); }
-            catch (KeyNotFoundException) { return Results.NotFound(); }
-            catch (InvalidOperationException ex) { return Results.Conflict(new { error = ex.Message }); }
-        }).WithTags("Payments").WithName("CreateMockCheckout").WithDescription("Development only: confirms a simulated payment. No money is charged.");
-        return endpoints;
+        if (!app.Environment.IsDevelopment()) return;
+        app.MapPost("/api/payments/checkout", async (CheckoutRequest request, CreatorService service,
+            CancellationToken cancellationToken) =>
+            Results.Ok(await service.BoostAsync(request, cancellationToken)));
     }
 }

@@ -6,7 +6,7 @@ import { RankingList } from '../../src/features/leaderboard/ui/RankingList'
 
 it('renders API rank, creator link, category, decimal score, and Boost action', async () => {
   const creator = {
-    id: 'creator-1', username: 'ada', firstName: 'Ada', lastName: 'Lovelace', displayName: 'Ada Lovelace',
+    id: 'creator-1', username: 'ada', name: 'Ada Lovelace',
     category: 'technology' as const, imageUrl: '/avatar.svg', socialProfiles: [], totalContributed: 12.5,
     dailyContributed: 12.5, joinedAt: '2026-09-01T00:00:00Z', scoreReachedAt: '2026-09-08T12:00:00Z', rank: 1,
   }

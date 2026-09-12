@@ -9,9 +9,7 @@ export interface SocialProfile {
 export interface Creator {
   readonly id: string
   readonly username: string
-  readonly firstName: string
-  readonly lastName: string
-  readonly displayName: string
+  readonly name: string
   readonly category: CreatorCategory
   readonly imageUrl: string
   readonly socialProfiles: readonly SocialProfile[]
@@ -39,4 +37,3 @@ export interface LeaderboardRepository {
   getAll(): Promise<readonly Creator[]>
   getDaily(date: string): Promise<readonly Creator[]>
 }
-

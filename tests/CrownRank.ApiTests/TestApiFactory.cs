@@ -1,7 +1,11 @@
-using CrownRank.Application.Abstractions;
-using CrownRank.Domain.Creators;
+using CrownRank.Api.Data;
+using CrownRank.Api.Infrastructure;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Data.Sqlite;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
@@ -10,60 +14,54 @@ namespace CrownRank.ApiTests;
 
 internal sealed class TestApiFactory(string environment = "Development") : WebApplicationFactory<Program>
 {
-    internal ApiStore Store { get; } = new();
+    private readonly SqliteConnection _connection = new("Data Source=:memory:");
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
+        _connection.Open();
         builder.UseEnvironment(environment);
-        builder.UseSetting("ConnectionStrings:Database", "Host=localhost;Database=unused_tests;Username=test;Password=test;Timeout=1");
         builder.ConfigureServices(services =>
         {
-            services.RemoveAll<ICreatorRepository>();
-            services.RemoveAll<IPaymentGateway>();
-            services.RemoveAll<IProfileImageService>();
+            services.RemoveAll<CrownRankDbContext>();
+            services.RemoveAll<DbContextOptions<CrownRankDbContext>>();
+            services.RemoveAll<IDbContextOptionsConfiguration<CrownRankDbContext>>();
+            services.RemoveAll<IProfileImageStore>();
             services.RemoveAll<TimeProvider>();
-            services.AddSingleton(Store);
-            services.AddSingleton<ICreatorRepository>(Store);
-            services.AddSingleton<IPaymentGateway>(Store);
-            services.AddSingleton<IProfileImageService>(Store);
-            services.AddSingleton<TimeProvider>(Store.Clock);
+            services.AddSingleton(_connection);
+            services.AddDbContext<CrownRankDbContext>((provider, options) =>
+                options.UseSqlite(provider.GetRequiredService<SqliteConnection>()));
+            services.AddSingleton<IProfileImageStore, FakeImageStore>();
+            services.AddSingleton<TimeProvider>(new FixedTimeProvider());
         });
     }
 
-    internal HttpClient CreateHttpsClient() => CreateClient(new WebApplicationFactoryClientOptions
+    internal HttpClient CreateHttpsClient()
     {
-        BaseAddress = new Uri("https://localhost")
-    });
-}
-
-internal sealed class ApiStore : ICreatorRepository, IPaymentGateway, IProfileImageService
-{
-    internal List<Creator> Creators { get; } = [];
-    internal FixedApiClock Clock { get; } = new();
-    internal List<CheckoutRequest> CheckoutRequests { get; } = [];
-
-    public Task<IReadOnlyList<Creator>> GetAllAsync(CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<Creator>>(Creators);
-    public Task<Creator?> GetByIdAsync(Guid id, CancellationToken cancellationToken) => Task.FromResult(Creators.SingleOrDefault(x => x.Id == id));
-    public Task<Creator?> GetByUsernameAsync(string username, CancellationToken cancellationToken) => Task.FromResult(Creators.SingleOrDefault(x => x.Username == username));
-    public Task<bool> UsernameExistsAsync(string username, CancellationToken cancellationToken) => Task.FromResult(Creators.Any(x => x.Username == username));
-    public Task<Creator?> GetByEntryReferenceAsync(Guid reference, CancellationToken cancellationToken) => Task.FromResult(Creators.SingleOrDefault(x => x.EntryReference == reference));
-    public Task<Contribution?> GetContributionAsync(string reference, CancellationToken cancellationToken) => Task.FromResult(Creators.SelectMany(x => x.Contributions).SingleOrDefault(x => x.PaymentReference == reference));
-    public Task AddAsync(Creator creator, CancellationToken cancellationToken) { Creators.Add(creator); return Task.CompletedTask; }
-    public Task SaveChangesAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-
-    public Task<CheckoutSession> CreateCheckoutAsync(CheckoutRequest request, CancellationToken cancellationToken)
-    {
-        CheckoutRequests.Add(request);
-        return Task.FromResult(new CheckoutSession($"mock-{request.ReferenceId:N}", true));
+        var client = CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("https://localhost")
+        });
+        using var scope = Services.CreateScope();
+        scope.ServiceProvider.GetRequiredService<CrownRankDbContext>().Database.EnsureCreated();
+        return client;
     }
 
-    public Task<StoredProfileImage> SaveAsync(ProfileImageUpload upload, CancellationToken cancellationToken) =>
-        Task.FromResult(new StoredProfileImage("/uploads/test.webp", "test.webp"));
+    protected override void Dispose(bool disposing)
+    {
+        base.Dispose(disposing);
+        if (disposing) _connection.Dispose();
+    }
+}
+
+internal sealed class FakeImageStore : IProfileImageStore
+{
+    public Task<StoredImage> SaveAsync(IFormFile image, CancellationToken cancellationToken) =>
+        Task.FromResult(new StoredImage("/uploads/profiles/test.png", "test.png"));
 
     public Task DeleteAsync(string storageKey, CancellationToken cancellationToken) => Task.CompletedTask;
 }
 
-internal sealed class FixedApiClock : TimeProvider
+internal sealed class FixedTimeProvider : TimeProvider
 {
-    public override DateTimeOffset GetUtcNow() => new(2026, 9, 8, 12, 0, 0, TimeSpan.Zero);
+    public override DateTimeOffset GetUtcNow() => new(2026, 9, 12, 12, 0, 0, TimeSpan.Zero);
 }

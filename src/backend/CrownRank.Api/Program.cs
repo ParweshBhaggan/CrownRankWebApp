@@ -1,47 +1,29 @@
+using CrownRank.Api.Data;
+using CrownRank.Api.Domain;
 using CrownRank.Api.Endpoints;
-using CrownRank.Application;
-using CrownRank.Infrastructure;
-using CrownRank.Infrastructure.Persistence;
+using CrownRank.Api.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
+var connectionString = builder.Configuration.GetConnectionString("Database") ?? string.Empty;
 
-builder.Services.AddApplication();
-builder.Services.AddInfrastructure(builder.Configuration);
-builder.Services.AddOpenApi();
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(options => options.SwaggerDoc("v1", new() { Title = "CrownRank API", Version = "v1", Description = "Local-development API for creator rankings." }));
+builder.Services.AddDbContext<CrownRankDbContext>(options => options.UseNpgsql(connectionString));
+builder.Services.AddScoped<CreatorService>();
+builder.Services.AddSingleton<IProfileImageStore, LocalProfileImageStore>();
+builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddProblemDetails();
-builder.Services.AddCors(options => options.AddPolicy("Frontend", policy => policy
-    .WithOrigins(builder.Configuration["Frontend:Origin"] ?? "http://localhost:5173")
-    .AllowAnyHeader()
-    .AllowAnyMethod()));
+builder.Services.AddExceptionHandler<ApiExceptionHandler>();
+builder.Services.AddCors(options => options.AddDefaultPolicy(policy => policy
+    .WithOrigins("http://localhost:5173", "https://localhost:5173")
+    .AllowAnyHeader().AllowAnyMethod()));
 
 var app = builder.Build();
-
-if (app.Environment.IsDevelopment())
-{
-    app.MapOpenApi();
-    app.UseSwagger();
-    app.UseSwaggerUI(options => { options.SwaggerEndpoint("/swagger/v1/swagger.json", "CrownRank API v1"); options.RoutePrefix = "swagger"; });
-    if (builder.Configuration.GetValue<bool>("SeedData:Enabled")) await app.Services.InitializeDatabaseAsync();
-}
-
 app.UseExceptionHandler();
-app.UseHttpsRedirection();
-app.UseCors("Frontend");
+app.UseCors();
 app.UseStaticFiles();
-app.MapGet("/api/health", async Task<IResult> (CrownRankDbContext database, CancellationToken cancellationToken) =>
-{
-    var connected = await database.Database.CanConnectAsync(cancellationToken);
-    return connected
-        ? Results.Ok(new { status = "healthy", database = "connected" })
-        : Results.Problem(statusCode: StatusCodes.Status503ServiceUnavailable, title: "Database unavailable");
-})
-    .WithName("HealthCheck");
-app.MapCreatorEndpoints(app.Environment.IsDevelopment());
-if (app.Environment.IsDevelopment()) app.MapPaymentEndpoints();
-
+app.MapGet("/api/health", () => Results.Ok(new { status = "healthy" }));
+app.MapCreatorEndpoints();
+app.MapPaymentEndpoints();
 app.Run();
 
 public partial class Program;

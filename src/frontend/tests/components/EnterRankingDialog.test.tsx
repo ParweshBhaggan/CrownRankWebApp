@@ -15,19 +15,19 @@ describe('EnterRankingDialog', () => {
 
     await user.click(screen.getByRole('button', { name: /continue with/i }))
 
-    expect(await screen.findAllByText(/enter your/i)).toHaveLength(2)
+    expect(await screen.findByText(/enter a name/i)).toBeInTheDocument()
+    expect(screen.getByText(/use 2–40 letters/i)).toBeInTheDocument()
     expect(screen.getByText(/confirm the declaration/i)).toBeInTheDocument()
     expect(createEntry).not.toHaveBeenCalled()
   })
 
-  it('submits a valid no-account entry and displays mock-payment confirmation', async () => {
-    vi.mocked(createEntry).mockResolvedValue({} as never)
+  it('submits a valid no-account entry and displays payment confirmation', async () => {
+    vi.mocked(createEntry).mockResolvedValue({ creatorId: 'creator-1', session: { id: 'mock-1', confirmed: true } })
     const user = userEvent.setup()
     const confirmed = vi.fn()
     render(<EnterRankingDialog isOpen onClose={vi.fn()} onConfirmed={confirmed} />)
 
-    await user.type(screen.getByLabelText('First name'), 'Ada')
-    await user.type(screen.getByLabelText('Last name'), 'Lovelace')
+    await user.type(screen.getByLabelText('Name'), 'Ada Lovelace')
     await user.type(screen.getByLabelText('Creator username'), 'ada')
     await user.type(screen.getByLabelText('Social profile URL 1'), 'https://instagram.com/ada')
     await user.click(screen.getByRole('checkbox'))
@@ -37,19 +37,18 @@ describe('EnterRankingDialog', () => {
 
     await waitFor(() => expect(createEntry).toHaveBeenCalledOnce())
     expect(vi.mocked(createEntry).mock.calls[0][0]).toMatchObject({
-      firstName: 'Ada', lastName: 'Lovelace', username: 'ada', contribution: 12.5,
+      name: 'Ada Lovelace', username: 'ada', contribution: 12.5,
     })
     expect(confirmed).toHaveBeenCalledOnce()
     expect(await screen.findByText(/you’re ready for the crown/i)).toBeInTheDocument()
-    expect(screen.getByText(/no money was charged/i)).toBeInTheDocument()
+    expect(screen.getByText(/profile is now on the leaderboard/i)).toBeInTheDocument()
   })
 
   it('keeps the same attempt available when a server error can be retried', async () => {
-    vi.mocked(createEntry).mockRejectedValueOnce(new Error('Database unavailable')).mockResolvedValueOnce({} as never)
+    vi.mocked(createEntry).mockRejectedValueOnce(new Error('Database unavailable')).mockResolvedValueOnce({ creatorId: 'creator-1', session: { id: 'mock-1', confirmed: true } })
     const user = userEvent.setup()
     render(<EnterRankingDialog isOpen onClose={vi.fn()} onConfirmed={vi.fn()} />)
-    await user.type(screen.getByLabelText('First name'), 'Ada')
-    await user.type(screen.getByLabelText('Last name'), 'Lovelace')
+    await user.type(screen.getByLabelText('Name'), 'Ada Lovelace')
     await user.type(screen.getByLabelText('Creator username'), 'ada')
     await user.type(screen.getByLabelText('Social profile URL 1'), 'https://instagram.com/ada')
     await user.click(screen.getByRole('checkbox'))
