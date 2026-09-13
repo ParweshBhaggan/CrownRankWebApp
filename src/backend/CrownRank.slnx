@@ -1,0 +1,16 @@
+<Solution>
+  <Folder Name="/Core/">
+    <Project Path="CrownRank.Application/CrownRank.Application.csproj" />
+    <Project Path="CrownRank.Domain/CrownRank.Domain.csproj" />
+  </Folder>
+  <Folder Name="/Infrastructure/">
+    <Project Path="CrownRank.Infrastructure/CrownRank.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/Presentation/">
+    <Project Path="CrownRank.API/CrownRank.API.csproj" Id="df6ddce3-8a4d-4919-b333-ca95fb1e5c19" />
+    <Project Path="CrownRank.ConsoleApp/CrownRank.ConsoleApp.csproj" Id="f9270681-a41a-47d5-b13a-89f1e61a343f" />
+  </Folder>
+  <Folder Name="/Solution Items/">
+    <File Path="Directory.Packages.props" />
+  </Folder>
+</Solution>

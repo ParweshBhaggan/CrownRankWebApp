@@ -1,0 +1,30 @@
+# .NET
+**/bin/
+**/obj/
+*.user
+
+# Node
+**/node_modules/
+**/dist/
+**/test-results/
+**/playwright-report/
+*.tsbuildinfo
+vite.config.js
+vite.config.d.ts
+
+# Environment and IDE files
+.env
+.env.*
+!.env.example
+.idea/
+.vs/
+.vscode/
+.DS_Store
+
+# Uploads and local data
+uploads/
+**/wwwroot/uploads/
+*.db
+/.vs/CrownRank.slnx/FileContentIndex
+/.vs/CrownRank.slnx/v18
+/.vs/CrownRank.slnx/config
