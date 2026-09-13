@@ -13,4 +13,7 @@
   <Folder Name="/Solution Items/">
     <File Path="Directory.Packages.props" />
   </Folder>
+  <Folder Name="/Tests/">
+    <Project Path="CrownRank.Domain.UnitTest/CrownRank.Domain.Tests.csproj" Id="f9a4c9c6-6d80-4b9d-a4e2-c11571836938" />
+  </Folder>
 </Solution>
