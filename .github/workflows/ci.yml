@@ -20,7 +20,7 @@ jobs:
         with:
           dotnet-version: 10.0.x
       - run: dotnet restore CrownRank.slnx
-      - run: dotnet test CrownRank.slnx --no-restore --configuration Release
+      - run: dotnet test --solution CrownRank.slnx --no-restore --configuration Release
 
   frontend:
     runs-on: ubuntu-latest
