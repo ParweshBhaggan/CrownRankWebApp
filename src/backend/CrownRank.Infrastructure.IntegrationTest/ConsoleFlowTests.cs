@@ -62,6 +62,9 @@ public sealed class ConsoleFlowTests
             Guid categoryId;
             using (var scope = provider.CreateScope())
                 categoryId = (await scope.ServiceProvider.GetRequiredService<CrownRankDbContext>().Categories.SingleAsync()).Id;
+            var categoryEdit = await ScriptAsync(provider, $"8\nconsole-admin\n5\n{categoryId}\nCreators\nUpdated description\n0\n1\n0\n");
+            Assert.Contains("Category saved", categoryEdit);
+            Assert.Contains("Updated description", categoryEdit);
             var created = await ScriptAsync(provider, $"5\n1\nCreator\ncreator\n1\n1\nhttps://instagram.com/creator\n{imagePath}\n500\nyes\nyes\n1\n0\n");
             Assert.Contains("Payment status: Confirmed", created);
             Guid entryId;
@@ -114,6 +117,9 @@ public sealed class ConsoleFlowTests
             var edit = await ScriptAsync(provider, $"8\nconsole-admin\n7\n{entryId}\n3\n1\n9\nCreator page\nhttps://example.com/creator\n0\n4\n{entryId}\n0\n");
             Assert.Contains("Entry saved", edit);
             Assert.Contains("Creator page", edit);
+            var imageEdit = await ScriptAsync(provider, $"8\nconsole-admin\n7\n{entryId}\n4\n{imagePath}\n0\n0\n");
+            Assert.Contains("Entry saved", imageEdit);
+            Assert.Single(Directory.GetFiles(Path.Combine(directory, "assets"), "*.png"));
             var prevented = await ScriptAsync(provider, $"8\nconsole-admin\n6\n{categoryId}\n0\n0\n");
             Assert.Contains("Move or archive the category's entries", prevented);
             var otherId = (await ScriptEntryIdsAsync(provider)).Single(x => x != entryId);
