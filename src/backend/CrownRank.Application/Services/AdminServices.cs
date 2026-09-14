@@ -65,7 +65,7 @@ public sealed class AdminEntryService(IEntryRepository entries, ICategoryReposit
     }
 }
 
-public sealed class AdminCategoryService(ICategoryRepository categories, IAdminAuthorization authorization,
+public sealed class AdminCategoryService(ICategoryRepository categories, IAdminQueries queries, IAdminAuthorization authorization,
     IUnitOfWork unitOfWork, IClock clock)
 {
     private async Task AuthorizeAsync(string credential, CancellationToken ct)
@@ -90,6 +90,8 @@ public sealed class AdminCategoryService(ICategoryRepository categories, IAdminA
     public async Task ArchiveAsync(string credential, Guid id, CancellationToken ct = default)
     {
         await AuthorizeAsync(credential, ct);
+        if ((await queries.EntriesAsync(ct)).Any(e => e.CategoryId == id && e.Status != EntryStatus.Archived))
+            throw new InvalidOperationException("Move or archive the category's entries before archiving it.");
         (await categories.GetAsync(id, ct) ?? throw new KeyNotFoundException("Category not found."))
             .Archive(clock.UtcNow);
         await unitOfWork.SaveAsync(ct);
