@@ -4,7 +4,7 @@ using CrownRank.Domain.ValueObjects;
 namespace CrownRank.Application.Payments;
 
 public enum PaymentPurpose { InitialEntry, Boost }
-public enum PaymentState { Pending, CheckoutReady, Confirmed, Failed }
+public enum PaymentState { Pending, CheckoutReady, Confirmed, Failed, Cancelled }
 
 public sealed class PaymentAttempt
 {
@@ -49,5 +49,11 @@ public sealed class PaymentAttempt
         if (State != PaymentState.CheckoutReady) throw new InvalidOperationException("Checkout is not ready.");
         State = PaymentState.Confirmed;
         ConfirmedAtUtc = now;
+    }
+
+    public void CompleteWithoutPayment(PaymentFailure reason)
+    {
+        if (State != PaymentState.CheckoutReady) throw new InvalidOperationException("Checkout is not ready.");
+        State = reason == PaymentFailure.Cancelled ? PaymentState.Cancelled : PaymentState.Failed;
     }
 }

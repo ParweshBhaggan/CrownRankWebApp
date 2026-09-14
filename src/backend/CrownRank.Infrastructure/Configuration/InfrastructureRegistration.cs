@@ -16,7 +16,11 @@ public static class InfrastructureRegistration
     {
         if (string.IsNullOrWhiteSpace(connectionString)) throw new ArgumentException("Connection string is required.");
         services.AddCrownRankPersistence(options => options.UseSqlite(connectionString), imageDirectory);
-        if (developmentMockPayments) services.AddSingleton<IPaymentGateway, MockPaymentGateway>();
+        if (developmentMockPayments)
+        {
+            services.AddSingleton(new MockPaymentGateway(Path.Combine(imageDirectory, "mock-payments.json")));
+            services.AddSingleton<IPaymentGateway>(sp => sp.GetRequiredService<MockPaymentGateway>());
+        }
         return services;
     }
 
@@ -30,6 +34,7 @@ public static class InfrastructureRegistration
         services.AddScoped<IPaymentAttemptRepository, PaymentAttemptRepository>();
         services.AddScoped<IUnitOfWork, EfUnitOfWork>();
         services.AddScoped<ILeaderboardQueries, EfLeaderboardQueries>();
+        services.AddScoped<IAdminQueries, EfAdminQueries>();
         services.AddSingleton<IClock, SystemClock>();
         services.AddSingleton<IProfileImageStorage>(new LocalProfileImageStorage(imageDirectory));
         return services;

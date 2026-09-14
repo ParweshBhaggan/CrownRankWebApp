@@ -10,6 +10,9 @@ public sealed class PaymentService(
     IEntryRepository entries, IContributionRepository contributions, IPaymentAttemptRepository attempts,
     IPaymentGateway gateway, IUnitOfWork unitOfWork, IClock clock)
 {
+    public async Task<PaymentAttempt> GetStatusAsync(Guid attemptId, CancellationToken ct = default)
+        => await attempts.GetAsync(attemptId, ct) ?? throw new KeyNotFoundException("Payment attempt not found.");
+
     public async Task<PaymentStart> StartBoostAsync(Guid entryId, Money amount, CancellationToken ct = default)
     {
         var entry = await entries.GetAsync(entryId, ct) ?? throw new KeyNotFoundException("Entry not found.");
@@ -38,13 +41,28 @@ public sealed class PaymentService(
         var attempt = await attempts.GetAsync(attemptId, ct) ?? throw new KeyNotFoundException("Payment attempt not found.");
         if (attempt.State == PaymentState.Confirmed)
             return await contributions.FindByPaymentAsync(attempt.Provider!, attempt.Reference!, ct);
+        if (attempt.State is PaymentState.Failed or PaymentState.Cancelled) return null;
         if (attempt.State != PaymentState.CheckoutReady) throw new InvalidOperationException("Checkout is not ready.");
         var verified = await gateway.VerifyAsync(attempt.Provider!, attempt.Reference!, ct);
-        if (!verified.Succeeded) return null;
         if (!string.Equals(verified.Provider, attempt.Provider, StringComparison.OrdinalIgnoreCase) ||
             !string.Equals(verified.Reference, attempt.Reference, StringComparison.Ordinal) ||
             verified.Amount != attempt.ExpectedAmount)
             throw new InvalidOperationException("Verified payment does not match the expected purchase.");
+        if (!verified.Succeeded)
+        {
+            if (verified.Failure.HasValue)
+                await unitOfWork.ExecuteInTransactionAsync(async token =>
+                {
+                    var current = await attempts.GetAsync(attemptId, token) ?? throw new KeyNotFoundException("Payment attempt not found.");
+                    if (current.State == PaymentState.CheckoutReady)
+                    {
+                        current.CompleteWithoutPayment(verified.Failure.Value);
+                        await unitOfWork.SaveAsync(token);
+                    }
+                    return 0;
+                }, ct);
+            return null;
+        }
 
         return await unitOfWork.ExecuteInTransactionAsync(async token =>
         {
