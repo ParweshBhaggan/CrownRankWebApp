@@ -7,13 +7,14 @@
     <Project Path="CrownRank.Infrastructure/CrownRank.Infrastructure.csproj" />
   </Folder>
   <Folder Name="/Presentation/">
-    <Project Path="CrownRank.API/CrownRank.API.csproj" Id="df6ddce3-8a4d-4919-b333-ca95fb1e5c19" />
+    <Project Path="CrownRank.Api/CrownRank.Api.csproj" Id="df6ddce3-8a4d-4919-b333-ca95fb1e5c19" />
     <Project Path="CrownRank.ConsoleApp/CrownRank.ConsoleApp.csproj" Id="f9270681-a41a-47d5-b13a-89f1e61a343f" />
   </Folder>
   <Folder Name="/Solution Items/">
     <File Path="Directory.Packages.props" />
   </Folder>
   <Folder Name="/Tests/">
+    <Project Path="CrownRank.Infrastructure.IntegrationTest/CrownRank.Infrastructure.IntegrationTest.csproj" />
     <Project Path="CrownRank.Application.UnitTest/CrownRank.Application.UnitTest.csproj" />
     <Project Path="CrownRank.Domain.UnitTest/CrownRank.Domain.Tests.csproj" Id="f9a4c9c6-6d80-4b9d-a4e2-c11571836938" />
   </Folder>

@@ -11,13 +11,20 @@ permissions:
 jobs:
   backend:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/backend
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
       - run: dotnet restore CrownRank.slnx
-      - run: dotnet test CrownRank.slnx --no-restore --configuration Release
+      - run: dotnet test --solution CrownRank.slnx --no-restore --configuration Release
+      - run: |
+          dotnet tool install --global dotnet-ef --version 10.0.12
+          dotnet ef migrations has-pending-model-changes --project CrownRank.Infrastructure --startup-project CrownRank.Infrastructure
+
 
   frontend:
     runs-on: ubuntu-latest
