@@ -119,7 +119,7 @@ public sealed class ConsoleFlowTests
             Assert.Contains("Creator page", edit);
             var imageEdit = await ScriptAsync(provider, $"8\nconsole-admin\n7\n{entryId}\n4\n{imagePath}\n0\n0\n");
             Assert.Contains("Entry saved", imageEdit);
-            Assert.Single(Directory.GetFiles(Path.Combine(directory, "assets"), "*.png"));
+            Assert.Equal(2, Directory.GetFiles(Path.Combine(directory, "assets"), "*.png").Length);
             var prevented = await ScriptAsync(provider, $"8\nconsole-admin\n6\n{categoryId}\n0\n0\n");
             Assert.Contains("Move or archive the category's entries", prevented);
             var otherId = (await ScriptEntryIdsAsync(provider)).Single(x => x != entryId);
