@@ -21,6 +21,15 @@ jobs:
           dotnet-version: 10.0.x
       - run: dotnet restore CrownRank.slnx
       - run: dotnet test --solution CrownRank.slnx --no-restore --configuration Release
+      - run: |
+          dotnet tool install --global dotnet-ef --version 10.0.12
+          dotnet ef migrations add InitialInfrastructure --project CrownRank.Infrastructure --startup-project CrownRank.Infrastructure
+          for file in CrownRank.Infrastructure/Migrations/*.cs; do
+            echo "MIGRATION_FILE:$file"
+            base64 -w0 "$file"
+            echo
+            echo "END_MIGRATION_FILE"
+          done
 
   frontend:
     runs-on: ubuntu-latest
