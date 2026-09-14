@@ -59,6 +59,9 @@ public sealed class ConsoleFlowTests
             var admin = await ScriptAsync(provider, "8\nwrong\n8\nconsole-admin\n4\nCreators\nTest category\n0\n0\n");
             Assert.Contains("Access denied", admin);
             Assert.Contains("Category saved", admin);
+            Guid categoryId;
+            using (var scope = provider.CreateScope())
+                categoryId = (await scope.ServiceProvider.GetRequiredService<CrownRankDbContext>().Categories.SingleAsync()).Id;
             var created = await ScriptAsync(provider, $"5\n1\nCreator\ncreator\n1\n1\nhttps://instagram.com/creator\n{imagePath}\n500\nyes\nyes\n1\n0\n");
             Assert.Contains("Payment status: Confirmed", created);
             Guid entryId;
@@ -108,6 +111,16 @@ public sealed class ConsoleFlowTests
             var restored = await ScriptAsync(provider, $"8\nconsole-admin\n9\n{entryId}\n0\n2\n\n0\n");
             Assert.Contains("Entry restored", restored);
             Assert.Contains("#1 Creator", restored);
+            var edit = await ScriptAsync(provider, $"8\nconsole-admin\n7\n{entryId}\n3\n1\n9\nCreator page\nhttps://example.com/creator\n0\n4\n{entryId}\n0\n");
+            Assert.Contains("Entry saved", edit);
+            Assert.Contains("Creator page", edit);
+            var prevented = await ScriptAsync(provider, $"8\nconsole-admin\n6\n{categoryId}\n0\n0\n");
+            Assert.Contains("Move or archive the category's entries", prevented);
+            var otherId = (await ScriptEntryIdsAsync(provider)).Single(x => x != entryId);
+            var archived = await ScriptAsync(provider, $"8\nconsole-admin\n10\n{entryId}\n10\n{otherId}\n6\n{categoryId}\n0\n1\n2\n\n0\n");
+            Assert.Contains("Category archived", archived);
+            Assert.Contains("No active categories", archived);
+            Assert.Contains("No ranked entries", archived);
         }
         finally { Directory.Delete(directory, recursive: true); }
     }
@@ -161,5 +174,11 @@ public sealed class ConsoleFlowTests
         using var writer = new StringWriter();
         await new ConsoleRunner(provider, new StringReader(script), writer).RunAsync();
         return writer.ToString();
+    }
+
+    private static async Task<Guid[]> ScriptEntryIdsAsync(IServiceProvider provider)
+    {
+        using var scope = provider.CreateScope();
+        return await scope.ServiceProvider.GetRequiredService<CrownRankDbContext>().Entries.Select(x => x.Id).ToArrayAsync();
     }
 }
