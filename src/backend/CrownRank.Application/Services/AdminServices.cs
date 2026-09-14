@@ -1,10 +1,11 @@
 using CrownRank.Application.Abstractions;
+using CrownRank.Application.Contracts;
 using CrownRank.Domain.Models;
 
 namespace CrownRank.Application.Services;
 
 public sealed class AdminEntryService(IEntryRepository entries, ICategoryRepository categories,
-    IAdminAuthorization authorization, IUnitOfWork unitOfWork, IClock clock)
+    IAdminAuthorization authorization, IUnitOfWork unitOfWork, IProfileImageStorage images, IClock clock)
 {
     private async Task<Entry> AuthorizedEntryAsync(string credential, Guid id, CancellationToken ct)
     {
@@ -23,6 +24,30 @@ public sealed class AdminEntryService(IEntryRepository entries, ICategoryReposit
         entry.ChangeCategory(category, clock.UtcNow);
         await unitOfWork.SaveAsync(ct);
     }
+    public async Task ReplaceSocialLinksAsync(string credential, Guid id, IReadOnlyList<SocialLinkInput> links, CancellationToken ct = default)
+    {
+        var entry = await AuthorizedEntryAsync(credential, id, ct);
+        entry.ReplaceSocialMediaLinks(links.Select(x => SocialMediaLink.Create(x.Platform, x.Url, x.CustomPlatformName)), clock.UtcNow);
+        await unitOfWork.SaveAsync(ct);
+    }
+    public async Task ReplaceImageAsync(string credential, Guid id, Stream content, string fileName, CancellationToken ct = default)
+    {
+        var entry = await AuthorizedEntryAsync(credential, id, ct);
+        var previous = entry.ProfileImageKey;
+        var key = await images.SaveAsync(content, fileName, ct);
+        try
+        {
+            entry.UpdateProfileImage(key, clock.UtcNow);
+            await unitOfWork.SaveAsync(ct);
+        }
+        catch
+        {
+            await images.DeleteAsync(key, ct);
+            throw;
+        }
+        try { await images.DeleteAsync(previous, ct); }
+        catch (IOException) { /* The persisted reference is correct; orphan cleanup can run later. */ }
+    }
     public async Task HideAsync(string credential, Guid id, CancellationToken ct = default)
     {
         (await AuthorizedEntryAsync(credential, id, ct)).Hide(clock.UtcNow);
@@ -40,7 +65,7 @@ public sealed class AdminEntryService(IEntryRepository entries, ICategoryReposit
     }
 }
 
-public sealed class AdminCategoryService(ICategoryRepository categories, IAdminAuthorization authorization,
+public sealed class AdminCategoryService(ICategoryRepository categories, IAdminQueries queries, IAdminAuthorization authorization,
     IUnitOfWork unitOfWork, IClock clock)
 {
     private async Task AuthorizeAsync(string credential, CancellationToken ct)
@@ -65,6 +90,8 @@ public sealed class AdminCategoryService(ICategoryRepository categories, IAdminA
     public async Task ArchiveAsync(string credential, Guid id, CancellationToken ct = default)
     {
         await AuthorizeAsync(credential, ct);
+        if ((await queries.EntriesAsync(ct)).Any(e => e.CategoryId == id && e.Status != EntryStatus.Archived))
+            throw new InvalidOperationException("Move or archive the category's entries before archiving it.");
         (await categories.GetAsync(id, ct) ?? throw new KeyNotFoundException("Category not found."))
             .Archive(clock.UtcNow);
         await unitOfWork.SaveAsync(ct);

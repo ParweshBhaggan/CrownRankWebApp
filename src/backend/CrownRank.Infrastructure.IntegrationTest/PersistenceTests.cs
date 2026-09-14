@@ -32,6 +32,7 @@ public sealed class PersistenceTests
             await db.SaveChangesAsync();
             var payments = Service(db, gateway);
             var started = await payments.StartAsync(entry.Id, Money.Create(500, "EUR"), CrownRank.Application.Payments.PaymentPurpose.InitialEntry);
+            gateway.SetOutcome(started.AttemptId, MockPaymentGateway.MockOutcome.Succeeded);
             var first = await payments.ConfirmAsync(started.AttemptId);
             var repeated = await payments.ConfirmAsync(started.AttemptId);
             Assert.Equal(first?.Id, repeated?.Id);
@@ -44,6 +45,7 @@ public sealed class PersistenceTests
             Assert.Single(await db.Contributions.ToListAsync());
             var payments = Service(db, gateway);
             var boost = await payments.StartBoostAsync(entryId, Money.Create(200, "EUR"));
+            gateway.SetOutcome(boost.AttemptId, MockPaymentGateway.MockOutcome.Succeeded);
             Assert.NotNull(await payments.ConfirmAsync(boost.AttemptId));
             var queries = new EfLeaderboardQueries(db);
             Assert.Equal(700, (await queries.GetGlobalAsync(null)).Single().ScoreInMinorUnits);

@@ -38,7 +38,9 @@ public interface IUnitOfWork
 }
 
 public sealed record CheckoutSession(string Provider, string Reference, string CheckoutUrl);
-public sealed record VerifiedPayment(string Provider, string Reference, Money Amount, bool Succeeded);
+public enum PaymentFailure { Failed, Cancelled }
+public sealed record VerifiedPayment(string Provider, string Reference, Money Amount, bool Succeeded,
+    PaymentFailure? Failure = null);
 
 public interface IPaymentGateway
 {
@@ -77,4 +79,15 @@ public interface ILeaderboardQueries
     // Only published entries and active contributions; sort score descending, score-reached time ascending, entry ID ascending.
     Task<IReadOnlyList<LeaderboardRow>> GetGlobalAsync(Guid? categoryId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<LeaderboardRow>> GetDailyAsync(DateOnly utcDay, Guid? categoryId, CancellationToken cancellationToken = default);
+}
+
+public sealed record AdminEntryRow(Guid Id, string Name, string Username, Guid CategoryId, EntryStatus Status,
+    DateTimeOffset CreatedAtUtc);
+public sealed record AdminPaymentRow(Guid Id, Guid EntryId, PaymentPurpose Purpose, PaymentState State,
+    long AmountInMinorUnits, string Currency, string? Provider, string? Reference);
+public interface IAdminQueries
+{
+    Task<IReadOnlyList<AdminEntryRow>> EntriesAsync(CancellationToken ct = default);
+    Task<IReadOnlyList<Category>> CategoriesAsync(CancellationToken ct = default);
+    Task<IReadOnlyList<AdminPaymentRow>> PaymentsAsync(CancellationToken ct = default);
 }
