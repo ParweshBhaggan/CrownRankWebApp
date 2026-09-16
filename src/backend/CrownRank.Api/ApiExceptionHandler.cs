@@ -2,6 +2,7 @@ using CrownRank.Domain.Common;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using SixLabors.ImageSharp;
 
 namespace CrownRank.Api;
 
@@ -15,7 +16,8 @@ public sealed class ApiExceptionHandler(IProblemDetailsService problemDetails, I
             KeyNotFoundException => StatusCodes.Status404NotFound,
             UnauthorizedAccessException => StatusCodes.Status401Unauthorized,
             DbUpdateConcurrencyException => StatusCodes.Status409Conflict,
-            DomainException or ArgumentException or InvalidDataException => StatusCodes.Status400BadRequest,
+            DomainException or ArgumentException or InvalidDataException or InvalidImageContentException
+                or UnknownImageFormatException => StatusCodes.Status400BadRequest,
             InvalidOperationException => StatusCodes.Status409Conflict,
             _ => StatusCodes.Status500InternalServerError
         };
