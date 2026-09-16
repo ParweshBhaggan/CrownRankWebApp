@@ -5,7 +5,7 @@ using CrownRank.Infrastructure.Configuration;
 using CrownRank.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authentication.BearerToken;
 using Microsoft.AspNetCore.RateLimiting;
-using Microsoft.Extensions.FileProviders;
+using Microsoft.AspNetCore.Http.Features;
 using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -18,6 +18,7 @@ Directory.CreateDirectory(imageDirectory);
 
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<ApiExceptionHandler>();
+builder.Services.Configure<FormOptions>(options => options.MultipartBodyLengthLimit = 6 * 1024 * 1024);
 builder.Services.AddCrownRankSqlite($"Data Source={databasePath}", imageDirectory, settings.EnableMockPayments);
 builder.Services.AddSingleton<ILegalDocumentVersions>(new ConfiguredLegalVersions(
     new LegalVersions(settings.TermsVersion, settings.PrivacyVersion, settings.RulesVersion)));
@@ -51,18 +52,12 @@ if (settings.AllowedOrigins.Length > 0)
         policy.WithOrigins(settings.AllowedOrigins).AllowAnyHeader().AllowAnyMethod()));
 
 var app = builder.Build();
+if (!app.Environment.IsEnvironment("Testing")) app.UseHttpsRedirection();
 app.UseExceptionHandler();
 if (settings.AllowedOrigins.Length > 0) app.UseCors();
 app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
-app.UseStaticFiles(new StaticFileOptions
-{
-    FileProvider = new PhysicalFileProvider(imageDirectory),
-    RequestPath = "/assets",
-    ServeUnknownFileTypes = false
-});
-
 await app.Services.MigrateCrownRankAsync();
 app.MapCrownRankEndpoints(builder.Environment, settings);
 app.Run();

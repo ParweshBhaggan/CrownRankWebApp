@@ -40,6 +40,8 @@ public sealed class ApiFlowTests
                 .RootElement.GetProperty("id").GetGuid();
 
             client.DefaultRequestHeaders.Authorization = null;
+            var legal = await client.GetFromJsonAsync<JsonElement>("/api/legal/versions");
+            Assert.Equal("terms-test", legal.GetProperty("terms").GetString());
             var submission = await client.PostAsync("/api/entries", EntryForm(categoryId, "Creator", "creator", 500));
             Assert.Equal(HttpStatusCode.Accepted, submission.StatusCode);
             var submissionJson = (await JsonDocument.ParseAsync(await submission.Content.ReadAsStreamAsync())).RootElement;
@@ -61,6 +63,11 @@ public sealed class ApiFlowTests
             Assert.Equal(HttpStatusCode.OK,
                 (await client.GetAsync(profileJson.GetProperty("imageUrl").GetString())).StatusCode);
 
+            var preview = await client.PostAsJsonAsync($"/api/entries/{entryId}/boost-preview",
+                new { amountInMinorUnits = 200, currency = "EUR" });
+            preview.EnsureSuccessStatusCode();
+            Assert.Equal(700, (await preview.Content.ReadFromJsonAsync<JsonElement>())
+                .GetProperty("projectedScoreInMinorUnits").GetInt64());
             var boost = await client.PostAsJsonAsync($"/api/entries/{entryId}/boosts",
                 new { amountInMinorUnits = 200, currency = "EUR" });
             Assert.Equal(HttpStatusCode.Accepted, boost.StatusCode);

@@ -28,6 +28,8 @@ public static class EndpointMappings
         var publicApi = app.MapGroup("/api");
         publicApi.MapGet("/categories", async (PublicReadService service, CancellationToken ct) =>
             Results.Ok((await service.CategoriesAsync(ct)).Select(c => new CategoryResponse(c.Id, c.Name, c.Description))));
+        publicApi.MapGet("/legal/versions", async (ILegalDocumentVersions versions, CancellationToken ct) =>
+            Results.Ok(await versions.CurrentAsync(ct)));
         publicApi.MapGet("/leaderboards/global", async (Guid? categoryId, PublicReadService service, CancellationToken ct) =>
             Results.Ok(await service.GlobalAsync(categoryId, ct)));
         publicApi.MapGet("/leaderboards/daily", async (DateOnly date, Guid? categoryId, PublicReadService service, CancellationToken ct) =>
@@ -37,12 +39,24 @@ public static class EndpointMappings
             var entry = await service.ProfileAsync(id, ct);
             return entry is null ? Results.NotFound() : Results.Ok(ToResponse(entry));
         });
+        publicApi.MapGet("/entries/{id:guid}/image", async (Guid id, PublicReadService reads,
+            IProfileImageStorage images, CancellationToken ct) =>
+        {
+            var entry = await reads.ProfileAsync(id, ct);
+            if (entry is null) return Results.NotFound();
+            var stream = await images.OpenReadAsync(entry.ProfileImageKey, ct);
+            return stream is null ? Results.NotFound() : Results.Stream(stream, "image/png");
+        });
         publicApi.MapPost("/entries", SubmitEntryAsync).DisableAntiforgery().RequireRateLimiting("writes");
         publicApi.MapPost("/entries/{id:guid}/boosts", async (Guid id, BoostRequest request, PaymentService payments, CancellationToken ct) =>
         {
             var started = await payments.StartBoostAsync(id, Money.Create(request.AmountInMinorUnits, request.Currency), ct);
             return Results.Accepted($"/api/payments/{started.AttemptId}", started);
         }).RequireRateLimiting("writes");
+        publicApi.MapPost("/entries/{id:guid}/boost-preview", async (Guid id, BoostRequest request,
+            PublicReadService reads, CancellationToken ct) =>
+            Results.Ok(await reads.BoostPreviewAsync(id,
+                Money.Create(request.AmountInMinorUnits, request.Currency), ct)));
         publicApi.MapGet("/payments/{id:guid}", async (Guid id, PaymentService payments, CancellationToken ct) =>
             Results.Ok(ToResponse(await payments.GetStatusAsync(id, ct))));
         publicApi.MapPost("/payments/{id:guid}/confirm", async (Guid id, PaymentService payments, CancellationToken ct) =>
@@ -154,7 +168,7 @@ public static class EndpointMappings
     }
 
     private static EntryResponse ToResponse(Entry entry) => new(entry.Id, entry.Name, entry.Username, entry.CategoryId,
-        $"/assets/{Uri.EscapeDataString(entry.ProfileImageKey)}",
+        $"/api/entries/{entry.Id}/image",
         entry.SocialMediaLinks.Select(x => new SocialLinkResponse(x.Platform.ToString(), x.Url, x.CustomPlatformName)).ToArray());
 
     private static PaymentResponse ToResponse(PaymentAttempt attempt) => new(attempt.Id, attempt.EntryId,

@@ -53,6 +53,7 @@ public interface IProfileImageStorage
 {
     // Implementations validate file type/content, bound size, resize to at most 300x250 and return an opaque key.
     Task<string> SaveAsync(Stream content, string fileName, CancellationToken cancellationToken = default);
+    Task<Stream?> OpenReadAsync(string key, CancellationToken cancellationToken = default);
     Task DeleteAsync(string key, CancellationToken cancellationToken = default);
 }
 
@@ -74,6 +75,8 @@ public interface IClock
 
 public sealed record LeaderboardRow(Guid EntryId, string Name, string Username, Guid CategoryId,
     long ScoreInMinorUnits, string Currency, DateTimeOffset ScoreReachedAtUtc, int Rank);
+public sealed record BoostPreview(Guid EntryId, string Name, string Username, int CurrentRank,
+    long CurrentScoreInMinorUnits, long BoostAmountInMinorUnits, long ProjectedScoreInMinorUnits, string Currency);
 public interface ILeaderboardQueries
 {
     // Only published entries and active contributions; sort score descending, score-reached time ascending, entry ID ascending.
