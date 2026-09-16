@@ -154,22 +154,34 @@ public sealed class ApiFlowTests
         => (await client.GetFromJsonAsync<JsonElement>($"/api/payments/{attemptId}"))
             .GetProperty("state").GetString()!;
 
-    private sealed class CrownRankApiFactory(string directory) : WebApplicationFactory<Program>
+    private sealed class CrownRankApiFactory : WebApplicationFactory<Program>
     {
-        protected override void ConfigureWebHost(IWebHostBuilder builder)
+        private readonly Dictionary<string, string?> _previous = [];
+
+        public CrownRankApiFactory(string directory)
         {
-            builder.UseEnvironment("Testing");
-            builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(
-                new Dictionary<string, string?>
-                {
-                    ["CrownRank:DatabasePath"] = Path.Combine(directory, "api.db"),
-                    ["CrownRank:ImageDirectory"] = Path.Combine(directory, "assets"),
-                    ["CrownRank:EnableMockPayments"] = "true",
-                    ["CrownRank:AdminPassword"] = "api-test-admin",
-                    ["CrownRank:TermsVersion"] = "terms-test",
-                    ["CrownRank:PrivacyVersion"] = "privacy-test",
-                    ["CrownRank:RulesVersion"] = "rules-test"
-                }));
+            Set("CrownRank__DatabasePath", Path.Combine(directory, "api.db"));
+            Set("CrownRank__ImageDirectory", Path.Combine(directory, "assets"));
+            Set("CrownRank__EnableMockPayments", "true");
+            Set("CrownRank__AdminPassword", "api-test-admin");
+            Set("CrownRank__TermsVersion", "terms-test");
+            Set("CrownRank__PrivacyVersion", "privacy-test");
+            Set("CrownRank__RulesVersion", "rules-test");
+        }
+
+        protected override void ConfigureWebHost(IWebHostBuilder builder)
+            => builder.UseEnvironment("Testing");
+
+        protected override void Dispose(bool disposing)
+        {
+            base.Dispose(disposing);
+            foreach (var pair in _previous) Environment.SetEnvironmentVariable(pair.Key, pair.Value);
+        }
+
+        private void Set(string name, string value)
+        {
+            _previous[name] = Environment.GetEnvironmentVariable(name);
+            Environment.SetEnvironmentVariable(name, value);
         }
     }
 }
