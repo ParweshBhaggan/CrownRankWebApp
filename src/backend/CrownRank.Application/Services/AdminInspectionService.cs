@@ -3,25 +3,9 @@ using CrownRank.Domain.Models;
 
 namespace CrownRank.Application.Services;
 
-public sealed class AdminInspectionService(IAdminQueries queries, IAdminAuthorization authorization)
+public sealed class AdminInspectionService(IAdminQueries queries)
 {
-    private async Task AuthorizeAsync(string credential, CancellationToken ct)
-    {
-        if (!await authorization.IsAuthorizedAsync(credential, ct)) throw new UnauthorizedAccessException();
-    }
-    public async Task<IReadOnlyList<AdminEntryRow>> EntriesAsync(string credential, CancellationToken ct = default)
-    {
-        await AuthorizeAsync(credential, ct);
-        return await queries.EntriesAsync(ct);
-    }
-    public async Task<IReadOnlyList<Category>> CategoriesAsync(string credential, CancellationToken ct = default)
-    {
-        await AuthorizeAsync(credential, ct);
-        return await queries.CategoriesAsync(ct);
-    }
-    public async Task<IReadOnlyList<AdminPaymentRow>> PaymentsAsync(string credential, CancellationToken ct = default)
-    {
-        await AuthorizeAsync(credential, ct);
-        return await queries.PaymentsAsync(ct);
-    }
+    public Task<IReadOnlyList<AdminEntryRow>> EntriesAsync(CancellationToken ct = default) => queries.EntriesAsync(ct);
+    public Task<IReadOnlyList<Category>> CategoriesAsync(CancellationToken ct = default) => queries.CategoriesAsync(ct);
+    public Task<IReadOnlyList<AdminPaymentRow>> PaymentsAsync(CancellationToken ct = default) => queries.PaymentsAsync(ct);
 }
