@@ -5,6 +5,8 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
 
 namespace CrownRank.Api.IntegrationTest;
 
@@ -137,10 +139,12 @@ public sealed class ApiFlowTests
             { new StringContent("EUR"), "currency" },
             { new StringContent("[{\"platform\":\"Instagram\",\"url\":\"https://instagram.com/creator\"}]"), "socialLinks" }
         };
-        var image = new ByteArrayContent(Convert.FromBase64String(
-            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Z7ZkAAAAASUVORK5CYII="));
-        image.Headers.ContentType = new MediaTypeHeaderValue("image/png");
-        form.Add(image, "image", "profile.png");
+        using var source = new Image<Rgba32>(2, 2);
+        using var stream = new MemoryStream();
+        source.SaveAsPng(stream);
+        var imageContent = new ByteArrayContent(stream.ToArray());
+        imageContent.Headers.ContentType = new MediaTypeHeaderValue("image/png");
+        form.Add(imageContent, "image", "profile.png");
         return form;
     }
 
