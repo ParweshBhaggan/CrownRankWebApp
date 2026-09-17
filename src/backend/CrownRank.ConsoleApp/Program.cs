@@ -27,4 +27,5 @@ services.AddScoped<AdminCategoryService>();
 services.AddScoped<AdminInspectionService>();
 using var provider = services.BuildServiceProvider();
 await provider.MigrateCrownRankAsync();
+await provider.SeedDevelopmentDataAsync();
 await new ConsoleRunner(provider, Console.In, Console.Out).RunAsync();
