@@ -15,7 +15,7 @@ public sealed class ConsoleRunner(IServiceProvider services, TextReader input, T
     public async Task RunAsync(CancellationToken ct = default)
     {
         output.WriteLine("CrownRank — local mock-payment console (EUR, minor units/cents)");
-        output.WriteLine("Create a category from the admin menu before submitting the first entry.");
+        output.WriteLine("Development data is seeded automatically for categories, creators and rankings.");
         try
         {
             while (!ct.IsCancellationRequested)
