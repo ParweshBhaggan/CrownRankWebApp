@@ -59,6 +59,7 @@ app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 await app.Services.MigrateCrownRankAsync();
+if (app.Environment.IsDevelopment()) await app.Services.SeedDevelopmentDataAsync();
 app.MapCrownRankEndpoints(builder.Environment, settings);
 app.Run();
 
