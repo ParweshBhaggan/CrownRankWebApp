@@ -4,8 +4,10 @@ namespace CrownRank.Api;
 
 public sealed class ApiSettings
 {
+    public string DatabaseProvider { get; init; } = "Sqlite";
     public string DatabasePath { get; init; } = "data/crownrank.db";
     public string ImageDirectory { get; init; } = "data/assets";
+    public string ImagePublicBaseUrl { get; init; } = "/uploads/profiles";
     public bool EnableMockPayments { get; init; }
     public string AdminPassword { get; init; } = string.Empty;
     public string TermsVersion { get; init; } = "terms-v1";
