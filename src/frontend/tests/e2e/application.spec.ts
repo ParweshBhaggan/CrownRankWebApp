@@ -72,7 +72,7 @@ test('visitor can navigate, enter the ranking, and Boost without an account', as
   await expect(page.getByText('No account required').first()).toBeVisible()
   await expect(page.getByText('Ada Lovelace').first()).toBeVisible()
   await page.getByRole('button', { name: 'Enter ranking' }).first().click()
-  await page.getByLabel('Name').fill('Grace Hopper')
+  await page.getByLabel('Name', { exact: true }).fill('Grace Hopper')
   await page.getByLabel('Creator username').fill('grace')
   await page.getByLabel('Creator category').selectOption('technology')
   await page.getByLabel('Social profile URL 1').fill('https://instagram.com/grace')
