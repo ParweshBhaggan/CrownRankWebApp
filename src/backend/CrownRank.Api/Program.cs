@@ -4,22 +4,41 @@ using CrownRank.Application.Services;
 using CrownRank.Infrastructure.Configuration;
 using CrownRank.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authentication.BearerToken;
-using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Http.Features;
+using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Extensions.FileProviders;
 using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 var settings = builder.Configuration.GetSection("CrownRank").Get<ApiSettings>() ?? new ApiSettings();
 var contentRoot = builder.Environment.ContentRootPath;
-var databasePath = Path.GetFullPath(settings.DatabasePath, contentRoot);
 var imageDirectory = Path.GetFullPath(settings.ImageDirectory, contentRoot);
-Directory.CreateDirectory(Path.GetDirectoryName(databasePath)!);
 Directory.CreateDirectory(imageDirectory);
 
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<ApiExceptionHandler>();
 builder.Services.Configure<FormOptions>(options => options.MultipartBodyLengthLimit = 6 * 1024 * 1024);
-builder.Services.AddCrownRankSqlite($"Data Source={databasePath}", imageDirectory, settings.EnableMockPayments);
+
+if (settings.DatabaseProvider.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase))
+{
+    var connectionString = builder.Configuration.GetConnectionString("CrownRank");
+    if (string.IsNullOrWhiteSpace(connectionString))
+        throw new InvalidOperationException("ConnectionStrings:CrownRank is required for PostgreSQL.");
+    builder.Services.AddCrownRankPostgreSql(
+        connectionString, imageDirectory, settings.EnableMockPayments, settings.ImagePublicBaseUrl);
+}
+else if (settings.DatabaseProvider.Equals("Sqlite", StringComparison.OrdinalIgnoreCase))
+{
+    var databasePath = Path.GetFullPath(settings.DatabasePath, contentRoot);
+    Directory.CreateDirectory(Path.GetDirectoryName(databasePath)!);
+    builder.Services.AddCrownRankSqlite(
+        $"Data Source={databasePath}", imageDirectory, settings.EnableMockPayments, settings.ImagePublicBaseUrl);
+}
+else
+{
+    throw new InvalidOperationException("CrownRank:DatabaseProvider must be PostgreSQL or Sqlite.");
+}
+
 builder.Services.AddSingleton<ILegalDocumentVersions>(new ConfiguredLegalVersions(
     new LegalVersions(settings.TermsVersion, settings.PrivacyVersion, settings.RulesVersion)));
 builder.Services.AddSingleton<IAdminAuthorization>(new ConfiguredAdminAuthorization(settings.AdminPassword));
@@ -55,6 +74,11 @@ var app = builder.Build();
 if (!app.Environment.IsEnvironment("Testing")) app.UseHttpsRedirection();
 app.UseExceptionHandler();
 if (settings.AllowedOrigins.Length > 0) app.UseCors();
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new PhysicalFileProvider(imageDirectory),
+    RequestPath = "/uploads/profiles"
+});
 app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();

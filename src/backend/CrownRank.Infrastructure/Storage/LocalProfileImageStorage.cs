@@ -1,13 +1,17 @@
 using CrownRank.Application.Abstractions;
 using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Formats;
 using SixLabors.ImageSharp.Processing;
 
 namespace CrownRank.Infrastructure.Storage;
 
-public sealed class LocalProfileImageStorage(string directory) : IProfileImageStorage
+public sealed class LocalProfileImageStorage(string directory, string publicBaseUrl = "/uploads/profiles")
+    : IProfileImageStorage
 {
     private const int MaxBytes = 5 * 1024 * 1024;
+    private readonly string _publicBaseUrl =
+        string.IsNullOrWhiteSpace(publicBaseUrl)
+            ? throw new ArgumentException("A public image base URL is required.", nameof(publicBaseUrl))
+            : publicBaseUrl.TrimEnd('/');
 
     public async Task<string> SaveAsync(Stream content, string fileName, CancellationToken ct = default)
     {
@@ -24,41 +28,48 @@ public sealed class LocalProfileImageStorage(string directory) : IProfileImageSt
         }
         buffer.Position = 0;
         using var image = await Image.LoadAsync(buffer, ct);
-        if (image.Width > 10000 || image.Height > 10000) throw new InvalidDataException("Image dimensions exceed the limit.");
+        if (image.Width > 10000 || image.Height > 10000)
+            throw new InvalidDataException("Image dimensions exceed the limit.");
         image.Mutate(x => x.AutoOrient().Resize(new ResizeOptions
         {
             Mode = ResizeMode.Max,
             Size = new Size(300, 250)
         }));
         Directory.CreateDirectory(directory);
-        var key = $"{Guid.NewGuid():N}.png";
-        var destination = Path.Combine(directory, key);
+        var fileKey = $"{Guid.NewGuid():N}.png";
+        var destination = Path.Combine(directory, fileKey);
         try { await image.SaveAsPngAsync(destination, ct); }
         catch { if (File.Exists(destination)) File.Delete(destination); throw; }
-        return key;
+        return $"{_publicBaseUrl}/{fileKey}";
     }
 
-    public Task DeleteAsync(string key, CancellationToken ct = default)
+    public Task DeleteAsync(string imageUrl, CancellationToken ct = default)
     {
-        ValidateKey(key);
-        File.Delete(Path.Combine(directory, key));
+        var fileKey = FileKey(imageUrl);
+        File.Delete(Path.Combine(directory, fileKey));
         return Task.CompletedTask;
     }
 
-    public Task<Stream?> OpenReadAsync(string key, CancellationToken ct = default)
+    public Task<Stream?> OpenReadAsync(string imageUrl, CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
-        ValidateKey(key);
-        var path = Path.Combine(directory, key);
+        var path = Path.Combine(directory, FileKey(imageUrl));
         Stream? stream = File.Exists(path)
             ? new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 81920, FileOptions.Asynchronous)
             : null;
         return Task.FromResult(stream);
     }
 
-    private static void ValidateKey(string key)
+    private static string FileKey(string imageUrl)
     {
-        if (key != Path.GetFileName(key) || !Guid.TryParseExact(Path.GetFileNameWithoutExtension(key), "N", out _) ||
-            Path.GetExtension(key) != ".png") throw new ArgumentException("Invalid image key.", nameof(key));
+        if (string.IsNullOrWhiteSpace(imageUrl)) throw new ArgumentException("Invalid image URL.", nameof(imageUrl));
+        var path = Uri.TryCreate(imageUrl, UriKind.Absolute, out var absolute)
+            ? absolute.AbsolutePath
+            : imageUrl;
+        var fileKey = Path.GetFileName(path);
+        if (!Guid.TryParseExact(Path.GetFileNameWithoutExtension(fileKey), "N", out _) ||
+            !string.Equals(Path.GetExtension(fileKey), ".png", StringComparison.OrdinalIgnoreCase))
+            throw new ArgumentException("Invalid image URL.", nameof(imageUrl));
+        return fileKey;
     }
 }

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace CrownRank.Infrastructure.Migrations
 {
     /// <inheritdoc />
-    public partial class InitialInfrastructure : Migration
+    public partial class InitialMigration : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -15,13 +15,13 @@ namespace CrownRank.Infrastructure.Migrations
                 name: "Categories",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
-                    Name = table.Column<string>(type: "TEXT", maxLength: 100, nullable: false),
-                    Description = table.Column<string>(type: "TEXT", maxLength: 500, nullable: true),
-                    Status = table.Column<int>(type: "INTEGER", nullable: false),
-                    CreatedAtUtc = table.Column<long>(type: "INTEGER", nullable: false),
-                    UpdatedAtUtc = table.Column<long>(type: "INTEGER", nullable: false),
-                    ArchivedAtUtc = table.Column<long>(type: "INTEGER", nullable: true)
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    Name = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false),
+                    Description = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true),
+                    Status = table.Column<int>(type: "integer", nullable: false),
+                    CreatedAtUtc = table.Column<long>(type: "bigint", nullable: false),
+                    UpdatedAtUtc = table.Column<long>(type: "bigint", nullable: false),
+                    ArchivedAtUtc = table.Column<long>(type: "bigint", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -32,22 +32,22 @@ namespace CrownRank.Infrastructure.Migrations
                 name: "Entries",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
-                    Name = table.Column<string>(type: "TEXT", maxLength: 100, nullable: false),
-                    Username = table.Column<string>(type: "TEXT", maxLength: 100, nullable: false),
-                    CategoryId = table.Column<Guid>(type: "TEXT", nullable: false),
-                    ProfileImageKey = table.Column<string>(type: "TEXT", maxLength: 500, nullable: false),
-                    AgreementAcceptance_TermsVersion = table.Column<string>(type: "TEXT", maxLength: 50, nullable: false),
-                    AgreementAcceptance_PrivacyPolicyVersion = table.Column<string>(type: "TEXT", maxLength: 50, nullable: false),
-                    AgreementAcceptance_RulesVersion = table.Column<string>(type: "TEXT", maxLength: 50, nullable: false),
-                    AgreementAcceptance_AcceptedAtUtc = table.Column<long>(type: "INTEGER", nullable: false),
-                    Status = table.Column<int>(type: "INTEGER", nullable: false),
-                    InitialContributionId = table.Column<Guid>(type: "TEXT", nullable: true),
-                    CreatedAtUtc = table.Column<long>(type: "INTEGER", nullable: false),
-                    UpdatedAtUtc = table.Column<long>(type: "INTEGER", nullable: false),
-                    PublishedAtUtc = table.Column<long>(type: "INTEGER", nullable: true),
-                    HiddenAtUtc = table.Column<long>(type: "INTEGER", nullable: true),
-                    ArchivedAtUtc = table.Column<long>(type: "INTEGER", nullable: true)
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    Name = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false),
+                    Username = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false),
+                    CategoryId = table.Column<Guid>(type: "uuid", nullable: false),
+                    ProfileImageKey = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: false),
+                    AgreementAcceptance_TermsVersion = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
+                    AgreementAcceptance_PrivacyPolicyVersion = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
+                    AgreementAcceptance_RulesVersion = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
+                    AgreementAcceptance_AcceptedAtUtc = table.Column<long>(type: "bigint", nullable: false),
+                    Status = table.Column<int>(type: "integer", nullable: false),
+                    InitialContributionId = table.Column<Guid>(type: "uuid", nullable: true),
+                    CreatedAtUtc = table.Column<long>(type: "bigint", nullable: false),
+                    UpdatedAtUtc = table.Column<long>(type: "bigint", nullable: false),
+                    PublishedAtUtc = table.Column<long>(type: "bigint", nullable: true),
+                    HiddenAtUtc = table.Column<long>(type: "bigint", nullable: true),
+                    ArchivedAtUtc = table.Column<long>(type: "bigint", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -64,17 +64,17 @@ namespace CrownRank.Infrastructure.Migrations
                 name: "PaymentAttempts",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
-                    EntryId = table.Column<Guid>(type: "TEXT", nullable: false),
-                    ExpectedAmount_AmountInMinorUnits = table.Column<long>(type: "INTEGER", nullable: false),
-                    ExpectedAmount_Currency = table.Column<string>(type: "TEXT", maxLength: 3, nullable: false),
-                    Purpose = table.Column<int>(type: "INTEGER", nullable: false),
-                    State = table.Column<int>(type: "INTEGER", nullable: false),
-                    Provider = table.Column<string>(type: "TEXT", maxLength: 50, nullable: true),
-                    Reference = table.Column<string>(type: "TEXT", maxLength: 255, nullable: true),
-                    CheckoutUrl = table.Column<string>(type: "TEXT", maxLength: 2048, nullable: true),
-                    CreatedAtUtc = table.Column<long>(type: "INTEGER", nullable: false),
-                    ConfirmedAtUtc = table.Column<long>(type: "INTEGER", nullable: true)
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    EntryId = table.Column<Guid>(type: "uuid", nullable: false),
+                    ExpectedAmount_AmountInMinorUnits = table.Column<long>(type: "bigint", nullable: false),
+                    ExpectedAmount_Currency = table.Column<string>(type: "character varying(3)", maxLength: 3, nullable: false),
+                    Purpose = table.Column<int>(type: "integer", nullable: false),
+                    State = table.Column<int>(type: "integer", nullable: false),
+                    Provider = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: true),
+                    Reference = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: true),
+                    CheckoutUrl = table.Column<string>(type: "character varying(2048)", maxLength: 2048, nullable: true),
+                    CreatedAtUtc = table.Column<long>(type: "bigint", nullable: false),
+                    ConfirmedAtUtc = table.Column<long>(type: "bigint", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -91,17 +91,17 @@ namespace CrownRank.Infrastructure.Migrations
                 name: "RankingContributions",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
-                    EntryId = table.Column<Guid>(type: "TEXT", nullable: false),
-                    Type = table.Column<int>(type: "INTEGER", nullable: false),
-                    Amount_AmountInMinorUnits = table.Column<long>(type: "INTEGER", nullable: false),
-                    Amount_Currency = table.Column<string>(type: "TEXT", maxLength: 3, nullable: false),
-                    PaymentProvider = table.Column<string>(type: "TEXT", maxLength: 50, nullable: false),
-                    PaymentReference = table.Column<string>(type: "TEXT", maxLength: 255, nullable: false),
-                    Status = table.Column<int>(type: "INTEGER", nullable: false),
-                    ConfirmedAtUtc = table.Column<long>(type: "INTEGER", nullable: false),
-                    ExclusionReason = table.Column<int>(type: "INTEGER", nullable: true),
-                    ExcludedAtUtc = table.Column<long>(type: "INTEGER", nullable: true)
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    EntryId = table.Column<Guid>(type: "uuid", nullable: false),
+                    Type = table.Column<int>(type: "integer", nullable: false),
+                    Amount_AmountInMinorUnits = table.Column<long>(type: "bigint", nullable: false),
+                    Amount_Currency = table.Column<string>(type: "character varying(3)", maxLength: 3, nullable: false),
+                    PaymentProvider = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
+                    PaymentReference = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: false),
+                    Status = table.Column<int>(type: "integer", nullable: false),
+                    ConfirmedAtUtc = table.Column<long>(type: "bigint", nullable: false),
+                    ExclusionReason = table.Column<int>(type: "integer", nullable: true),
+                    ExcludedAtUtc = table.Column<long>(type: "bigint", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -118,11 +118,11 @@ namespace CrownRank.Infrastructure.Migrations
                 name: "SocialMediaLinks",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
-                    Platform = table.Column<int>(type: "INTEGER", nullable: false),
-                    Url = table.Column<string>(type: "TEXT", maxLength: 2048, nullable: false),
-                    CustomPlatformName = table.Column<string>(type: "TEXT", maxLength: 50, nullable: true),
-                    EntryId = table.Column<Guid>(type: "TEXT", nullable: false)
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    Platform = table.Column<int>(type: "integer", nullable: false),
+                    Url = table.Column<string>(type: "character varying(2048)", maxLength: 2048, nullable: false),
+                    CustomPlatformName = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: true),
+                    EntryId = table.Column<Guid>(type: "uuid", nullable: false)
                 },
                 constraints: table =>
                 {
