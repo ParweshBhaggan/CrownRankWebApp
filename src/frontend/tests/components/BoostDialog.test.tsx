@@ -11,7 +11,7 @@ const creator = {
 } satisfies Creator
 
 describe('BoostDialog', () => {
-  it('sends decimal USD through the mock gateway and confirms once', async () => {
+  it('sends decimal EUR through the mock gateway and confirms once', async () => {
     const createCheckout = vi.fn().mockResolvedValue({ id: 'mock-1', confirmed: true })
     const confirmed = vi.fn()
     const user = userEvent.setup()
@@ -23,7 +23,7 @@ describe('BoostDialog', () => {
 
     await waitFor(() => expect(createCheckout).toHaveBeenCalledOnce())
     expect(createCheckout).toHaveBeenCalledWith(expect.objectContaining({
-      creatorId: creator.id, purpose: 'creator-boost', amount: 2.5, currency: 'USD',
+      creatorId: creator.id, purpose: 'creator-boost', amount: 2.5, currency: 'EUR',
     }))
     expect(confirmed).toHaveBeenCalledOnce()
     expect(await screen.findByText('Boost confirmed')).toBeInTheDocument()
