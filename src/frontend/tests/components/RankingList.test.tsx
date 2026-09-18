@@ -17,7 +17,7 @@ it('renders API rank, creator link, category, decimal score, and Boost action', 
   expect(screen.getByText('#1')).toBeInTheDocument()
   expect(screen.getByRole('link', { name: /Ada Lovelace/i })).toHaveAttribute('href', '/creators/creator-1')
   expect(screen.getByText('Technology')).toBeInTheDocument()
-  expect(screen.getByText('$12.50')).toBeInTheDocument()
+  expect(screen.getByText('€12.50')).toBeInTheDocument()
   await user.click(screen.getByRole('button', { name: /boost/i }))
   expect(onBoost).toHaveBeenCalledWith(creator)
 })
