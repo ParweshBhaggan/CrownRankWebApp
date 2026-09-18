@@ -41,7 +41,11 @@ public static class DatabaseInitializer
     public static async Task MigrateCrownRankAsync(this IServiceProvider services, CancellationToken ct = default)
     {
         using var scope = services.CreateScope();
-        await scope.ServiceProvider.GetRequiredService<CrownRankDbContext>().Database.MigrateAsync(ct);
+        var db = scope.ServiceProvider.GetRequiredService<CrownRankDbContext>();
+        if (db.Database.IsNpgsql())
+            await db.Database.EnsureCreatedAsync(ct);
+        else
+            await db.Database.MigrateAsync(ct);
     }
 
     public static async Task SeedDevelopmentDataAsync(this IServiceProvider services, CancellationToken ct = default)
