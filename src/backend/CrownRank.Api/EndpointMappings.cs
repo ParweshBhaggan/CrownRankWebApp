@@ -168,7 +168,7 @@ public static class EndpointMappings
     }
 
     private static EntryResponse ToResponse(Entry entry) => new(entry.Id, entry.Name, entry.Username, entry.CategoryId,
-        $"/api/entries/{entry.Id}/image",
+        entry.ProfileImageKey,
         entry.SocialMediaLinks.Select(x => new SocialLinkResponse(x.Platform.ToString(), x.Url, x.CustomPlatformName)).ToArray());
 
     private static PaymentResponse ToResponse(PaymentAttempt attempt) => new(attempt.Id, attempt.EntryId,
