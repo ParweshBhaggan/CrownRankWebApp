@@ -8,7 +8,40 @@ public sealed class CrownRankDesignTimeFactory : IDesignTimeDbContextFactory<Cro
 {
     public CrownRankDbContext CreateDbContext(string[] args)
     {
-        var connection = Environment.GetEnvironmentVariable("CROWNRANK_DESIGN_CONNECTION") ?? "Data Source=crownrank-design.db";
-        return new CrownRankDbContext(new DbContextOptionsBuilder<CrownRankDbContext>().UseSqlite(connection).Options);
+        var provider =
+            Environment.GetEnvironmentVariable(
+                "CrownRank__DatabaseProvider")
+            ?? "Sqlite";
+
+        var options =
+            new DbContextOptionsBuilder<CrownRankDbContext>();
+
+        if (provider.Equals(
+                "PostgreSQL",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            var connectionString =
+                Environment.GetEnvironmentVariable(
+                    "ConnectionStrings__CrownRank");
+
+            if (string.IsNullOrWhiteSpace(connectionString))
+            {
+                throw new InvalidOperationException(
+                    "ConnectionStrings__CrownRank is required for PostgreSQL.");
+            }
+
+            options.UseNpgsql(connectionString);
+        }
+        else
+        {
+            var connectionString =
+                Environment.GetEnvironmentVariable(
+                    "CROWNRANK_DESIGN_CONNECTION")
+                ?? "Data Source=crownrank-design.db";
+
+            options.UseSqlite(connectionString);
+        }
+
+        return new CrownRankDbContext(options.Options);
     }
 }
