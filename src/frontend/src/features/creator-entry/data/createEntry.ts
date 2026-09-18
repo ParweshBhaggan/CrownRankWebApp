@@ -20,7 +20,8 @@ const platformNames: Record<string, string> = {
   other: 'Other',
 }
 
-export async function createEntry(draft: RankingEntryDraft, _entryReference: string): Promise<void> {
+export async function createEntry(draft: RankingEntryDraft, entryReference: string): Promise<void> {
+  void entryReference
   if (!draft.profileImage) throw new Error('A profile image is required.')
   const categories = await getCategories()
   const selected = categories.find(category => categorySlug(category) === draft.category)
