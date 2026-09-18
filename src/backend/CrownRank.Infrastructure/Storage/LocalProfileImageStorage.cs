@@ -40,9 +40,25 @@ public sealed class LocalProfileImageStorage(string directory) : IProfileImageSt
 
     public Task DeleteAsync(string key, CancellationToken ct = default)
     {
-        if (key != Path.GetFileName(key) || !Guid.TryParseExact(Path.GetFileNameWithoutExtension(key), "N", out _) ||
-            Path.GetExtension(key) != ".png") throw new ArgumentException("Invalid image key.", nameof(key));
+        ValidateKey(key);
         File.Delete(Path.Combine(directory, key));
         return Task.CompletedTask;
+    }
+
+    public Task<Stream?> OpenReadAsync(string key, CancellationToken ct = default)
+    {
+        ct.ThrowIfCancellationRequested();
+        ValidateKey(key);
+        var path = Path.Combine(directory, key);
+        Stream? stream = File.Exists(path)
+            ? new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 81920, FileOptions.Asynchronous)
+            : null;
+        return Task.FromResult(stream);
+    }
+
+    private static void ValidateKey(string key)
+    {
+        if (key != Path.GetFileName(key) || !Guid.TryParseExact(Path.GetFileNameWithoutExtension(key), "N", out _) ||
+            Path.GetExtension(key) != ".png") throw new ArgumentException("Invalid image key.", nameof(key));
     }
 }

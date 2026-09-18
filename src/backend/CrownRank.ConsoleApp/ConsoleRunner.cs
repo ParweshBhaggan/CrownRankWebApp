@@ -15,7 +15,7 @@ public sealed class ConsoleRunner(IServiceProvider services, TextReader input, T
     public async Task RunAsync(CancellationToken ct = default)
     {
         output.WriteLine("CrownRank — local mock-payment console (EUR, minor units/cents)");
-        output.WriteLine("Create a category from the admin menu before submitting the first entry.");
+        output.WriteLine("Development data is seeded automatically for categories, creators and rankings.");
         try
         {
             while (!ct.IsCancellationRequested)
@@ -67,33 +67,33 @@ public sealed class ConsoleRunner(IServiceProvider services, TextReader input, T
                 switch (choice)
                 {
                     case "1":
-                        foreach (var e in await inspection.EntriesAsync(credential, ct))
+                        foreach (var e in await inspection.EntriesAsync(ct))
                             output.WriteLine($"{e.Id} | {e.Name} @{e.Username} | {e.Status} | category {e.CategoryId}");
                         break;
                     case "2":
-                        foreach (var c in await inspection.CategoriesAsync(credential, ct))
+                        foreach (var c in await inspection.CategoriesAsync(ct))
                             output.WriteLine($"{c.Id} | {c.Name} | {c.Status} | {c.Description}");
                         break;
                     case "3":
-                        foreach (var p in await inspection.PaymentsAsync(credential, ct))
+                        foreach (var p in await inspection.PaymentsAsync(ct))
                             output.WriteLine($"{p.Id} | entry {p.EntryId} | {p.Purpose} {p.State} | {Format(p.AmountInMinorUnits, p.Currency)} | {p.Provider}:{p.Reference}");
                         break;
                     case "4":
-                        var created = await categories.CreateAsync(credential, Ask("Category name"), Ask("Description (optional)"), ct);
+                        var created = await categories.CreateAsync(Ask("Category name"), Ask("Description (optional)"), ct);
                         output.WriteLine($"Category saved: {created.Id}");
                         break;
                     case "5":
-                        await categories.UpdateAsync(credential, GuidInput("Category ID"), Ask("New name"), Ask("New description"), ct);
+                        await categories.UpdateAsync(GuidInput("Category ID"), Ask("New name"), Ask("New description"), ct);
                         output.WriteLine("Category saved."); break;
                     case "6":
-                        await categories.ArchiveAsync(credential, GuidInput("Category ID"), ct);
+                        await categories.ArchiveAsync(GuidInput("Category ID"), ct);
                         output.WriteLine("Category archived."); break;
-                    case "7": await EditEntryAsync(entries, credential, ct); break;
-                    case "8": await entries.HideAsync(credential, GuidInput("Entry ID"), ct);
+                    case "7": await EditEntryAsync(entries, ct); break;
+                    case "8": await entries.HideAsync(GuidInput("Entry ID"), ct);
                         output.WriteLine("Entry hidden."); break;
-                    case "9": await entries.RestoreAsync(credential, GuidInput("Entry ID"), ct);
+                    case "9": await entries.RestoreAsync(GuidInput("Entry ID"), ct);
                         output.WriteLine("Entry restored."); break;
-                    case "10": await entries.ArchiveAsync(credential, GuidInput("Entry ID"), ct);
+                    case "10": await entries.ArchiveAsync(GuidInput("Entry ID"), ct);
                         output.WriteLine("Entry archived."); break;
                     default: output.WriteLine("Unknown menu option."); break;
                 }
@@ -101,19 +101,19 @@ public sealed class ConsoleRunner(IServiceProvider services, TextReader input, T
         }
     }
 
-    private async Task EditEntryAsync(AdminEntryService entries, string credential, CancellationToken ct)
+    private async Task EditEntryAsync(AdminEntryService entries, CancellationToken ct)
     {
         var id = GuidInput("Entry ID");
         output.WriteLine("Edit: 1 Name/username  2 Category  3 Social accounts  4 Profile image");
         switch (Ask("Choose"))
         {
-            case "1": await entries.UpdateDetailsAsync(credential, id, Ask("Name"), Ask("Username"), ct); break;
-            case "2": await entries.ChangeCategoryAsync(credential, id, GuidInput("New category ID"), ct); break;
-            case "3": await entries.ReplaceSocialLinksAsync(credential, id, Links(), ct); break;
+            case "1": await entries.UpdateDetailsAsync(id, Ask("Name"), Ask("Username"), ct); break;
+            case "2": await entries.ChangeCategoryAsync(id, GuidInput("New category ID"), ct); break;
+            case "3": await entries.ReplaceSocialLinksAsync(id, Links(), ct); break;
             case "4":
                 var path = Ask("Image path (PNG/JPEG/WebP, up to 5 MB)");
                 await using (var image = File.OpenRead(path))
-                    await entries.ReplaceImageAsync(credential, id, image, path, ct);
+                    await entries.ReplaceImageAsync(id, image, path, ct);
                 break;
             default: output.WriteLine("No changes made."); return;
         }
