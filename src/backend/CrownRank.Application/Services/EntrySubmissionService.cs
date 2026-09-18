@@ -14,22 +14,38 @@ public sealed class EntrySubmissionService(ICategoryRepository categories, IEntr
     {
         ArgumentNullException.ThrowIfNull(request);
         if (!request.AcceptedAgreements) throw new InvalidOperationException("Agreement acceptance is required.");
-        var category = await categories.GetAsync(request.CategoryId, ct) ?? throw new KeyNotFoundException("Category not found.");
+
+        var category = await categories.GetAsync(request.CategoryId, ct)
+            ?? throw new KeyNotFoundException("Category not found.");
         var versions = await legal.CurrentAsync(ct);
-        var acceptance = AgreementAcceptance.Create(versions.Terms, versions.Privacy, versions.Rules, clock.UtcNow);
-        var links = request.Links.Select(x => SocialMediaLink.Create(x.Platform, x.Url, x.CustomPlatformName)).ToArray();
+        var acceptance = AgreementAcceptance.Create(
+            versions.Terms, versions.Privacy, versions.Rules, clock.UtcNow);
+        var links = request.Links
+            .Select(x => SocialMediaLink.Create(x.Platform, x.Url, x.CustomPlatformName))
+            .ToArray();
         var amount = Money.Create(request.AmountInMinorUnits, request.Currency);
         if (amount.AmountInMinorUnits <= 0) throw new ArgumentException("Payment amount must be positive.");
+
         var key = await images.SaveAsync(request.Image, request.ImageFileName, ct);
-        Entry entry;
-        try { entry = Entry.Create(request.Name, request.Username, category, key, acceptance, links, clock.UtcNow); }
+        try
+        {
+            var entry = Entry.Create(
+                request.Name, request.Username, category, key, acceptance, links, clock.UtcNow);
+
+            return await unitOfWork.ExecuteInTransactionAsync(async token =>
+            {
+                await entries.AddAsync(entry, token);
+                await unitOfWork.SaveAsync(token);
+                return await payments.StartAsync(
+                    entry.Id, amount, PaymentPurpose.InitialEntry, token);
+            }, ct);
+        }
         catch
         {
-            await images.DeleteAsync(key, ct);
+            // A cancelled request must not prevent compensation or leave an orphaned file.
+            try { await images.DeleteAsync(key, CancellationToken.None); }
+            catch { /* Preserve the original submission failure. */ }
             throw;
         }
-        await entries.AddAsync(entry, ct);
-        await unitOfWork.SaveAsync(ct);
-        return await payments.StartAsync(entry.Id, amount, PaymentPurpose.InitialEntry, ct);
     }
 }

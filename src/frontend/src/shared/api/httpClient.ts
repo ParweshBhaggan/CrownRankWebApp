@@ -1,4 +1,4 @@
-export const apiBaseUrl = import.meta.env?.VITE_API_URL ?? 'http://localhost:5080'
+export const apiBaseUrl = import.meta.env?.VITE_API_URL?.replace(/\/$/, '') ?? ''
 
 export class ApiError extends Error {
   readonly status: number
@@ -6,7 +6,12 @@ export class ApiError extends Error {
 }
 
 export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${apiBaseUrl}${path}`, init)
+  let response: Response
+  try {
+    response = await fetch(`${apiBaseUrl}${path}`, init)
+  } catch {
+    throw new Error('The API request was interrupted. Check that the backend is running, then retry.')
+  }
   if (!response.ok) {
     const problem = await response.json().catch(() => ({})) as { error?: string; detail?: string; errors?: Record<string, string[]> }
     const message = problem.errors ? Object.values(problem.errors).flat().join(' ') : problem.error ?? problem.detail

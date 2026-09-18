@@ -10,6 +10,7 @@
   <ItemGroup>
     <ProjectReference Include="..\CrownRank.Application\CrownRank.Application.csproj" />
     <ProjectReference Include="..\CrownRank.Infrastructure\CrownRank.Infrastructure.csproj" />
+    <PackageReference Include="Swashbuckle.AspNetCore" />
   </ItemGroup>
 
 </Project>

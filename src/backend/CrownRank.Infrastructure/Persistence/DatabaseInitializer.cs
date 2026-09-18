@@ -41,7 +41,11 @@ public static class DatabaseInitializer
     public static async Task MigrateCrownRankAsync(this IServiceProvider services, CancellationToken ct = default)
     {
         using var scope = services.CreateScope();
-        await scope.ServiceProvider.GetRequiredService<CrownRankDbContext>().Database.MigrateAsync(ct);
+        var database = scope.ServiceProvider.GetRequiredService<CrownRankDbContext>().Database;
+        if (database.IsSqlite())
+            await database.EnsureCreatedAsync(ct);
+        else
+            await database.MigrateAsync(ct);
     }
 
     public static async Task SeedDevelopmentDataAsync(this IServiceProvider services, CancellationToken ct = default)
