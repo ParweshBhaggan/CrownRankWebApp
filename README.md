@@ -49,7 +49,7 @@ Swagger opens automatically at `https://localhost:7208/swagger` for the HTTPS la
 | POST | `/api/payments/checkout` | Confirm a simulated contribution; Development only |
 | DELETE | `/api/creators/{id}` | Hide a public profile; retain its ledger; Development only |
 
-Entry uses multipart fields: `entryReference` (UUID), `firstName`, `lastName`, `username`, `category`, `initialAmount`, `socialProfilesJson`, and optional `image`.
+Entry submission uses multipart fields: `name`, `username`, `categoryId`, `acceptedAgreements`, `amountInMinorUnits`, `currency`, `socialLinks`, and required `image`.
 
 Mock Boost checkout uses JSON: `referenceId` (UUID), `creatorId`, `purpose` (`creator-boost`), `amount`, and `currency` (`USD`). Its response contains `id` and `confirmed`. Entry mock confirmation is part of the multipart creator request so profile registration and its opening contribution are saved together.
 
