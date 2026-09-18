@@ -18,7 +18,7 @@ All creator mutation and mock checkout routes are registered only in Development
 
 Prerequisites: .NET 10 SDK, Node.js 22.18+ (or Node.js 24), and local PostgreSQL 16+.
 
-Set `ConnectionStrings:Database` using .NET user secrets or environment variables. The API listens on `http://localhost:5281` and `https://localhost:7208`; the frontend defaults to `http://localhost:5173`. Use `src/frontend/.env.example` for a browser-facing API URL override.
+Set `ConnectionStrings:Database` using .NET user secrets or environment variables. The API listens on `http://localhost:5281` and `https://localhost:7208`; the frontend defaults to `http://localhost:5173`. During local development, Vite proxies `/api` and `/uploads` to the HTTPS API. Use `src/frontend/.env.example` only when a direct browser-facing API URL override is needed.
 
 Startup never creates, migrates, or updates the database schema. Migrations remain owner-managed.
 
