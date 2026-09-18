@@ -8,38 +8,26 @@ public sealed class CrownRankDesignTimeFactory : IDesignTimeDbContextFactory<Cro
 {
     public CrownRankDbContext CreateDbContext(string[] args)
     {
-        var provider =
-            Environment.GetEnvironmentVariable(
-                "CrownRank__DatabaseProvider")
-            ?? "Sqlite";
+        var provider = Environment.GetEnvironmentVariable("CrownRank__DatabaseProvider")
+            ?? "PostgreSQL";
+        var options = new DbContextOptionsBuilder<CrownRankDbContext>();
 
-        var options =
-            new DbContextOptionsBuilder<CrownRankDbContext>();
-
-        if (provider.Equals(
-                "PostgreSQL",
-                StringComparison.OrdinalIgnoreCase))
+        if (provider.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase))
         {
-            var connectionString =
-                Environment.GetEnvironmentVariable(
-                    "ConnectionStrings__CrownRank");
-
-            if (string.IsNullOrWhiteSpace(connectionString))
-            {
-                throw new InvalidOperationException(
-                    "ConnectionStrings__CrownRank is required for PostgreSQL.");
-            }
-
+            var connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__CrownRank")
+                ?? "Host=localhost;Database=crownrank_design;Username=postgres";
             options.UseNpgsql(connectionString);
+        }
+        else if (provider.Equals("Sqlite", StringComparison.OrdinalIgnoreCase))
+        {
+            var connectionString = Environment.GetEnvironmentVariable("CROWNRANK_DESIGN_CONNECTION")
+                ?? "Data Source=crownrank-design.db";
+            options.UseSqlite(connectionString);
         }
         else
         {
-            var connectionString =
-                Environment.GetEnvironmentVariable(
-                    "CROWNRANK_DESIGN_CONNECTION")
-                ?? "Data Source=crownrank-design.db";
-
-            options.UseSqlite(connectionString);
+            throw new InvalidOperationException(
+                "CrownRank__DatabaseProvider must be PostgreSQL or Sqlite.");
         }
 
         return new CrownRankDbContext(options.Options);
