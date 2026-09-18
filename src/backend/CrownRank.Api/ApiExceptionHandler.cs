@@ -12,6 +12,12 @@ public sealed class ApiExceptionHandler(IProblemDetailsService problemDetails, I
 {
     public async ValueTask<bool> TryHandleAsync(HttpContext context, Exception exception, CancellationToken ct)
     {
+        if (exception is OperationCanceledException && context.RequestAborted.IsCancellationRequested)
+        {
+            logger.LogInformation("API request was cancelled by the client.");
+            return true;
+        }
+
         var status = exception switch
         {
             KeyNotFoundException => StatusCodes.Status404NotFound,
