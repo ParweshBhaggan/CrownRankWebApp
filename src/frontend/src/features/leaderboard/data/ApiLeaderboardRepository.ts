@@ -47,6 +47,7 @@ export function categorySlug(category: ApiCategory): CreatorCategory {
     slug => creatorCategoryLabels[slug].toLowerCase() === category.name.toLowerCase(),
   )
   if (byLabel) return byLabel
+  if (category.name.toLowerCase() === 'business') return 'business'
   const normalized = category.name.toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
   return creatorCategories.find(slug => slug === normalized) ?? 'other'
 }
