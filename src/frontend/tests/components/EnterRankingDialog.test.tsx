@@ -31,6 +31,7 @@ describe('EnterRankingDialog', () => {
     await user.type(screen.getByLabelText('Creator username'), 'ada')
     await user.type(screen.getByLabelText('Social profile URL 1'), 'https://instagram.com/ada')
     await user.click(screen.getByRole('checkbox'))
+    await user.upload(screen.getByLabelText('Profile image'), new File(['image'], 'profile.png', { type: 'image/png' }))
     await user.clear(screen.getByLabelText('Choose your amount'))
     await user.type(screen.getByLabelText('Choose your amount'), '12.50')
     await user.click(screen.getByRole('button', { name: /continue with \$12\.50/i }))
@@ -53,6 +54,7 @@ describe('EnterRankingDialog', () => {
     await user.type(screen.getByLabelText('Creator username'), 'ada')
     await user.type(screen.getByLabelText('Social profile URL 1'), 'https://instagram.com/ada')
     await user.click(screen.getByRole('checkbox'))
+    await user.upload(screen.getByLabelText('Profile image'), new File(['image'], 'profile.png', { type: 'image/png' }))
     await user.click(screen.getByRole('button', { name: /continue with/i }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Database unavailable')
