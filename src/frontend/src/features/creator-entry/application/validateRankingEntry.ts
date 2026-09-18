@@ -2,7 +2,7 @@ import { parseAmount } from '../../../shared/format/currency.ts'
 import type { RankingEntryDraft, RankingEntryValidationErrors } from '../domain/rankingEntry'
 
 const usernamePattern = /^[a-zA-Z0-9._-]{2,40}$/
-const acceptedImageTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/bmp'])
+const acceptedImageTypes = new Set(['image/jpeg', 'image/png', 'image/webp'])
 
 export function validateRankingEntry(draft: RankingEntryDraft): RankingEntryValidationErrors {
   const errors: RankingEntryValidationErrors = {}
@@ -15,6 +15,6 @@ export function validateRankingEntry(draft: RankingEntryDraft): RankingEntryVali
   })
   const platformsAreUnique = new Set(draft.socialLinks.map(link => link.platform)).size === draft.socialLinks.length
   if (!linksAreValid || !platformsAreUnique) errors.socialLinks = 'Add 1–5 unique HTTPS links matching the selected platforms.'
-  if (draft.profileImage && (!acceptedImageTypes.has(draft.profileImage.type) || draft.profileImage.size > 8 * 1024 * 1024)) errors.profileImage = 'Choose a JPG, PNG, WebP, GIF, or BMP image up to 8 MB.'
+  if (!draft.profileImage || !acceptedImageTypes.has(draft.profileImage.type) || draft.profileImage.size > 5 * 1024 * 1024) errors.profileImage = 'Choose a JPG, PNG, or WebP image up to 5 MB.'
   return errors
 }
