@@ -16,6 +16,8 @@ var imageDirectory = Path.GetFullPath(settings.ImageDirectory, contentRoot);
 Directory.CreateDirectory(imageDirectory);
 
 builder.Services.AddProblemDetails();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
 builder.Services.AddExceptionHandler<ApiExceptionHandler>();
 builder.Services.Configure<FormOptions>(options => options.MultipartBodyLengthLimit = 6 * 1024 * 1024);
 
@@ -71,6 +73,11 @@ if (settings.AllowedOrigins.Length > 0)
         policy.WithOrigins(settings.AllowedOrigins).AllowAnyHeader().AllowAnyMethod()));
 
 var app = builder.Build();
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
 if (!app.Environment.IsEnvironment("Testing")) app.UseHttpsRedirection();
 app.UseExceptionHandler();
 if (settings.AllowedOrigins.Length > 0) app.UseCors();
