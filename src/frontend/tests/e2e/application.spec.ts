@@ -75,6 +75,7 @@ test('visitor can navigate, enter the ranking, and Boost without an account', as
   await page.getByLabel('First name').fill('Grace')
   await page.getByLabel('Last name').fill('Hopper')
   await page.getByLabel('Creator username').fill('grace')
+  await page.getByLabel('Creator category').selectOption('technology')
   await page.getByLabel('Social profile URL 1').fill('https://instagram.com/grace')
   await page.getByLabel('Profile image').setInputFiles({
     name: 'profile.png',
