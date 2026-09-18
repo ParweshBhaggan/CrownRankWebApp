@@ -4,7 +4,7 @@ export interface CreateCheckoutRequest {
   readonly creatorId: string
   readonly purpose: PaymentPurpose
   readonly amount: number
-  readonly currency: 'USD'
+  readonly currency: 'EUR'
 }
 export interface CheckoutSession { readonly id: string; readonly confirmed: boolean }
 export interface PaymentGateway { createCheckout(request: CreateCheckoutRequest): Promise<CheckoutSession> }
