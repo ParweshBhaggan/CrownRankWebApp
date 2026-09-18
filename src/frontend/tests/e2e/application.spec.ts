@@ -26,7 +26,7 @@ test('visitor can navigate, enter the ranking, and Boost without an account', as
     rank: index + 1,
   }))
 
-  await page.route('http://localhost:5281/api/**', async route => {
+  await page.route('**/api/**', async route => {
     const request = route.request()
     const url = new URL(request.url())
     if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: corsHeaders })
