@@ -41,10 +41,14 @@ public sealed class EfUnitOfWork(CrownRankDbContext db) : IUnitOfWork
 
     public async Task<T> ExecuteInTransactionAsync<T>(Func<CancellationToken, Task<T>> action, CancellationToken ct = default)
     {
-        await using var transaction = await db.Database.BeginTransactionAsync(ct);
-        var result = await action(ct);
-        await db.SaveChangesAsync(ct);
-        await transaction.CommitAsync(ct);
-        return result;
+        var strategy = db.Database.CreateExecutionStrategy();
+        return await strategy.ExecuteAsync(async () =>
+        {
+            await using var transaction = await db.Database.BeginTransactionAsync(ct);
+            var result = await action(ct);
+            await db.SaveChangesAsync(ct);
+            await transaction.CommitAsync(ct);
+            return result;
+        });
     }
 }
