@@ -22,6 +22,14 @@ describe('frontend API adapters', () => {
     await expect(apiRequest('/invalid')).rejects.toMatchObject({ status: 400, message: 'Amount is invalid. Link is invalid.' })
   })
 
+  it('reports an interrupted request with a useful retry message', async () => {
+    globalThis.fetch = async () => { throw new TypeError('fetch failed') }
+
+    await expect(apiRequest('/api/categories')).rejects.toThrow(
+      'The API request was interrupted. Check that the backend is running, then retry.',
+    )
+  })
+
   it('submits the current multipart entry contract and confirms its mock payment', async () => {
     const requests: { url: string; init?: RequestInit }[] = []
     globalThis.fetch = async (input, init) => {
