@@ -1,4 +1,4 @@
-export const apiBaseUrl = import.meta.env?.VITE_API_URL ?? 'http://localhost:5281'
+export const apiBaseUrl = import.meta.env?.VITE_API_URL?.replace(/\/$/, '') ?? ''
 
 export class ApiError extends Error {
   readonly status: number
