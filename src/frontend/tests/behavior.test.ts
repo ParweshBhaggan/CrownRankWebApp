@@ -5,11 +5,11 @@ import { rankCreators } from '../src/features/leaderboard/application/rankCreato
 import { validateRankingEntry } from '../src/features/creator-entry/application/validateRankingEntry'
 import { archivedDateKeys, resolveDailyDate, todayKey } from '../src/features/leaderboard/application/dailyDates'
 
-test('decimal amounts retain cent precision and display in dollars', () => {
+test('decimal amounts retain cent precision and display in euros', () => {
   assert.equal(parseAmount('12.50'), 12.5)
   assert.equal(parseAmount('1.01'), 1.01)
   assert.equal(parseAmount('10000.00'), 10000)
-  assert.equal(formatCurrency(12.5), '$12.50')
+  assert.match(formatCurrency(12.5), /€12\.50|12\.50\s*€/)
 })
 
 test('invalid or out-of-range amounts are rejected instead of rounded', () => {
@@ -24,7 +24,7 @@ test('ranking preserves authoritative API order without mutating creators', () =
   assert.deepEqual(rankCreators([]), [])
 })
 
-const draft = { firstName: 'Ada', lastName: 'Lovelace', username: 'ada', category: 'technology', contribution: 12.5, socialLinks: [{ id: '1', platform: 'instagram', url: 'https://www.instagram.com/ada' }] } as const as Parameters<typeof validateRankingEntry>[0]
+const draft = { firstName: 'Ada', lastName: 'Lovelace', username: 'ada', category: 'technology', contribution: 12.5, socialLinks: [{ id: '1', platform: 'instagram', url: 'https://www.instagram.com/ada' }], profileImage: new File(['image'], 'profile.png', { type: 'image/png' }) } as const as Parameters<typeof validateRankingEntry>[0]
 
 test('entry validation accepts valid data and rejects misleading social hosts', () => {
   assert.deepEqual(validateRankingEntry(draft), {})
