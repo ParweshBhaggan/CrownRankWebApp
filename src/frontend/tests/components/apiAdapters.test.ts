@@ -33,7 +33,7 @@ describe('frontend API adapters', () => {
       return Response.json({ state: 'Confirmed' })
     }
     const draft = {
-      firstName: ' Ada ', lastName: ' Lovelace ', username: ' ada ', category: 'technology', contribution: 12.5,
+      name: ' Ada Lovelace ', username: ' ada ', category: 'technology', contribution: 12.5,
       socialLinks: [{ id: 'ui-only', platform: 'instagram', url: ' https://instagram.com/ada ' }],
       profileImage: new File(['image'], 'profile.png', { type: 'image/png' }),
     } satisfies RankingEntryDraft
