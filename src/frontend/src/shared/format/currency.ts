@@ -1,8 +1,8 @@
 export function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number.isFinite(amount) ? amount : 0)
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'EUR' }).format(Number.isFinite(amount) ? amount : 0)
 }
 
-// Parse user input at cent precision before converting to the API's dollar amount.
+// Parse user input at cent precision before converting to the API's major-unit amount.
 export function parseAmount(value: string): number {
   if (!/^\d{1,5}(\.\d{1,2})?$/.test(value.trim())) return NaN
   const [whole, fraction = ''] = value.trim().split('.')
