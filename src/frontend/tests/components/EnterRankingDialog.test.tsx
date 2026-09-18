@@ -34,7 +34,7 @@ describe('EnterRankingDialog', () => {
     await user.upload(screen.getByLabelText('Profile image'), new File(['image'], 'profile.png', { type: 'image/png' }))
     await user.clear(screen.getByLabelText('Choose your amount'))
     await user.type(screen.getByLabelText('Choose your amount'), '12.50')
-    await user.click(screen.getByRole('button', { name: /continue with \$12\.50/i }))
+    await user.click(screen.getByRole('button', { name: /continue with €12\.50/i }))
 
     await waitFor(() => expect(createEntry).toHaveBeenCalledOnce())
     expect(vi.mocked(createEntry).mock.calls[0][0]).toMatchObject({
