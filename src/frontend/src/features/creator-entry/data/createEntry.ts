@@ -36,7 +36,7 @@ export async function createEntry(draft: RankingEntryDraft, _entryReference: str
   form.set('socialLinks', JSON.stringify(draft.socialLinks.map(({ platform, url }) => ({
     platform: platformNames[platform],
     url: url.trim(),
-  })))
+  }))))
   form.set('image', draft.profileImage)
 
   const payment = await apiRequest<PaymentStart>('/api/entries', { method: 'POST', body: form })
