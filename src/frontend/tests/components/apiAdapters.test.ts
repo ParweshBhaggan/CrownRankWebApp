@@ -41,10 +41,10 @@ describe('frontend API adapters', () => {
     await createEntry(draft, 'ui-reference')
 
     expect(requests.map(request => request.url)).toEqual([
-      'http://localhost:5281/api/categories',
-      'http://localhost:5281/api/entries',
-      'http://localhost:5281/api/dev/payments/attempt-1/outcome',
-      'http://localhost:5281/api/payments/attempt-1/confirm',
+      '/api/categories',
+      '/api/entries',
+      '/api/dev/payments/attempt-1/outcome',
+      '/api/payments/attempt-1/confirm',
     ])
     const form = requests[1].init?.body as FormData
     expect(form.get('name')).toBe('Ada Lovelace')
@@ -77,8 +77,8 @@ describe('frontend API adapters', () => {
     const global = await repository.getAll()
     const daily = await repository.getDaily('2026-09-18')
 
-    expect(paths).toContain('http://localhost:5281/api/leaderboards/global')
-    expect(paths).toContain('http://localhost:5281/api/leaderboards/daily?date=2026-09-18')
+    expect(paths).toContain('/api/leaderboards/global')
+    expect(paths).toContain('/api/leaderboards/daily?date=2026-09-18')
     expect(global[0]).toMatchObject({
       id: 'entry-1', displayName: 'Ada Lovelace', category: 'technology',
       totalContributed: 12.5, imageUrl: 'http://localhost:5173/uploads/profiles/one.png',
@@ -100,9 +100,9 @@ describe('frontend API adapters', () => {
 
     await expect(new MockPaymentGateway().createCheckout(payload)).resolves.toEqual({ id: 'attempt-2', confirmed: true })
     expect(requests.map(request => request.url)).toEqual([
-      'http://localhost:5281/api/entries/entry-1/boosts',
-      'http://localhost:5281/api/dev/payments/attempt-2/outcome',
-      'http://localhost:5281/api/payments/attempt-2/confirm',
+      '/api/entries/entry-1/boosts',
+      '/api/dev/payments/attempt-2/outcome',
+      '/api/payments/attempt-2/confirm',
     ])
     expect(JSON.parse(requests[0].body!)).toEqual({ amountInMinorUnits: 250, currency: 'EUR' })
   })
