@@ -18,7 +18,7 @@ All creator mutation and mock checkout routes are registered only in Development
 
 Prerequisites: .NET 10 SDK, Node.js 22.18+ (or Node.js 24), and local PostgreSQL 16+.
 
-Set `ConnectionStrings:Database` using .NET user secrets or environment variables. The API defaults to `http://localhost:5080`; the frontend defaults to `http://localhost:5173`. Use `src/frontend/.env.example` for a browser-facing API URL override.
+Set `ConnectionStrings:Database` using .NET user secrets or environment variables. The API listens on `http://localhost:5281` and `https://localhost:7208`; the frontend defaults to `http://localhost:5173`. Use `src/frontend/.env.example` for a browser-facing API URL override.
 
 Startup never creates, migrates, or updates the database schema. Migrations remain owner-managed.
 
@@ -35,7 +35,7 @@ npm ci
 npm run dev
 ```
 
-Swagger is available at `http://localhost:5080/swagger` in Development. The database starts empty unless you explicitly enable `SeedData:Enabled` through configuration. Optional seeding inserts sample creators only into an empty database and requires an already updated schema.
+Swagger opens automatically at `https://localhost:7208/swagger` for the HTTPS launch profile and is also available at `http://localhost:5281/swagger` in Development. The database starts empty unless you explicitly enable `SeedData:Enabled` through configuration. Optional seeding inserts sample creators only into an empty database and requires an already updated schema.
 
 ## API contracts
 
