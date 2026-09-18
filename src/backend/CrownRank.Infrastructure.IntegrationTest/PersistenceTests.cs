@@ -24,7 +24,7 @@ public sealed class PersistenceTests
         var gateway = new MockPaymentGateway();
         await using (var db = new CrownRankDbContext(options))
         {
-            await db.Database.MigrateAsync();
+            await db.Database.EnsureCreatedAsync();
             var category = Category.Create("Creators", null, Day);
             var entry = CreateEntry(category);
             db.Categories.Add(category);
@@ -61,7 +61,7 @@ public sealed class PersistenceTests
         await connection.OpenAsync();
         var options = new DbContextOptionsBuilder<CrownRankDbContext>().UseSqlite(connection).Options;
         await using var db = new CrownRankDbContext(options);
-        await db.Database.MigrateAsync();
+        await db.Database.EnsureCreatedAsync();
         var category = Category.Create("Creators", null, Day);
         var entry = CreateEntry(category);
         db.Categories.Add(category);
@@ -79,7 +79,7 @@ public sealed class PersistenceTests
         await connection.OpenAsync();
         var options = new DbContextOptionsBuilder<CrownRankDbContext>().UseSqlite(connection).Options;
         await using var db = new CrownRankDbContext(options);
-        await db.Database.MigrateAsync();
+        await db.Database.EnsureCreatedAsync();
         var category = Category.Create("Creators", null, Day);
         var entry = CreateEntry(category);
         var contribution = RankingContribution.CreateInitialPayment(entry, Money.Create(100, "EUR"), "mock", "reference", Day);
