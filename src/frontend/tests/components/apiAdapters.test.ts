@@ -22,6 +22,14 @@ describe('frontend API adapters', () => {
     await expect(apiRequest('/invalid')).rejects.toMatchObject({ status: 400, message: 'Amount is invalid. Link is invalid.' })
   })
 
+  it('reports an interrupted request with a useful retry message', async () => {
+    globalThis.fetch = async () => { throw new TypeError('fetch failed') }
+
+    await expect(apiRequest('/api/categories')).rejects.toThrow(
+      'The API request was interrupted. Check that the backend is running, then retry.',
+    )
+  })
+
   it('submits the current multipart entry contract and confirms its mock payment', async () => {
     const requests: { url: string; init?: RequestInit }[] = []
     globalThis.fetch = async (input, init) => {
@@ -33,7 +41,7 @@ describe('frontend API adapters', () => {
       return Response.json({ state: 'Confirmed' })
     }
     const draft = {
-      firstName: ' Ada ', lastName: ' Lovelace ', username: ' ada ', category: 'technology', contribution: 12.5,
+      name: ' Ada Lovelace ', username: ' ada ', category: 'technology', contribution: 12.5,
       socialLinks: [{ id: 'ui-only', platform: 'instagram', url: ' https://instagram.com/ada ' }],
       profileImage: new File(['image'], 'profile.png', { type: 'image/png' }),
     } satisfies RankingEntryDraft
@@ -41,10 +49,10 @@ describe('frontend API adapters', () => {
     await createEntry(draft, 'ui-reference')
 
     expect(requests.map(request => request.url)).toEqual([
-      'http://localhost:5080/api/categories',
-      'http://localhost:5080/api/entries',
-      'http://localhost:5080/api/dev/payments/attempt-1/outcome',
-      'http://localhost:5080/api/payments/attempt-1/confirm',
+      '/api/categories',
+      '/api/entries',
+      '/api/dev/payments/attempt-1/outcome',
+      '/api/payments/attempt-1/confirm',
     ])
     const form = requests[1].init?.body as FormData
     expect(form.get('name')).toBe('Ada Lovelace')
@@ -77,8 +85,8 @@ describe('frontend API adapters', () => {
     const global = await repository.getAll()
     const daily = await repository.getDaily('2026-09-18')
 
-    expect(paths).toContain('http://localhost:5080/api/leaderboards/global')
-    expect(paths).toContain('http://localhost:5080/api/leaderboards/daily?date=2026-09-18')
+    expect(paths).toContain('/api/leaderboards/global')
+    expect(paths).toContain('/api/leaderboards/daily?date=2026-09-18')
     expect(global[0]).toMatchObject({
       id: 'entry-1', displayName: 'Ada Lovelace', category: 'technology',
       totalContributed: 12.5, imageUrl: 'http://localhost:5173/uploads/profiles/one.png',
@@ -100,9 +108,9 @@ describe('frontend API adapters', () => {
 
     await expect(new MockPaymentGateway().createCheckout(payload)).resolves.toEqual({ id: 'attempt-2', confirmed: true })
     expect(requests.map(request => request.url)).toEqual([
-      'http://localhost:5080/api/entries/entry-1/boosts',
-      'http://localhost:5080/api/dev/payments/attempt-2/outcome',
-      'http://localhost:5080/api/payments/attempt-2/confirm',
+      '/api/entries/entry-1/boosts',
+      '/api/dev/payments/attempt-2/outcome',
+      '/api/payments/attempt-2/confirm',
     ])
     expect(JSON.parse(requests[0].body!)).toEqual({ amountInMinorUnits: 250, currency: 'EUR' })
   })

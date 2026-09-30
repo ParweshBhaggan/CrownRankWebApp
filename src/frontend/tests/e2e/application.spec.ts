@@ -26,7 +26,7 @@ test('visitor can navigate, enter the ranking, and Boost without an account', as
     rank: index + 1,
   }))
 
-  await page.route('http://localhost:5080/api/**', async route => {
+  await page.route(/^https?:\/\/[^/]+\/api\//, async route => {
     const request = route.request()
     const url = new URL(request.url())
     if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: corsHeaders })
@@ -72,8 +72,7 @@ test('visitor can navigate, enter the ranking, and Boost without an account', as
   await expect(page.getByText('No account required').first()).toBeVisible()
   await expect(page.getByText('Ada Lovelace').first()).toBeVisible()
   await page.getByRole('button', { name: 'Enter ranking' }).first().click()
-  await page.getByLabel('First name').fill('Grace')
-  await page.getByLabel('Last name').fill('Hopper')
+  await page.getByLabel('Name', { exact: true }).fill('Grace Hopper')
   await page.getByLabel('Creator username').fill('grace')
   await page.getByLabel('Creator category').selectOption('technology')
   await page.getByLabel('Social profile URL 1').fill('https://instagram.com/grace')

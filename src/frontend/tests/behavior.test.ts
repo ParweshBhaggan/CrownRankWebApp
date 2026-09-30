@@ -24,7 +24,7 @@ test('ranking preserves authoritative API order without mutating creators', () =
   assert.deepEqual(rankCreators([]), [])
 })
 
-const draft = { firstName: 'Ada', lastName: 'Lovelace', username: 'ada', category: 'technology', contribution: 12.5, socialLinks: [{ id: '1', platform: 'instagram', url: 'https://www.instagram.com/ada' }], profileImage: new File(['image'], 'profile.png', { type: 'image/png' }) } as const as Parameters<typeof validateRankingEntry>[0]
+const draft = { name: 'Ada Lovelace', username: 'ada', category: 'technology', contribution: 12.5, socialLinks: [{ id: '1', platform: 'instagram', url: 'https://www.instagram.com/ada' }], profileImage: new File(['image'], 'profile.png', { type: 'image/png' }) } as const as Parameters<typeof validateRankingEntry>[0]
 
 test('entry validation accepts valid data and rejects misleading social hosts', () => {
   assert.deepEqual(validateRankingEntry(draft), {})
@@ -35,7 +35,7 @@ test('entry validation accepts valid data and rejects misleading social hosts', 
 
 test('entry limits match the backend money and profile rules', () => {
   assert.ok(validateRankingEntry({ ...draft, contribution: 1.001 }).contribution)
-  assert.ok(validateRankingEntry({ ...draft, firstName: 'a'.repeat(81) }).firstName)
+  assert.ok(validateRankingEntry({ ...draft, name: 'a'.repeat(101) }).name)
   assert.ok(validateRankingEntry({ ...draft, socialLinks: Array(6).fill(draft.socialLinks[0]) }).socialLinks)
   assert.ok(validateRankingEntry({ ...draft, socialLinks: [draft.socialLinks[0], { ...draft.socialLinks[0], id: '2' }] }).socialLinks)
 })

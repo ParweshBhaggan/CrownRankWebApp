@@ -28,7 +28,7 @@ export async function createEntry(draft: RankingEntryDraft, entryReference: stri
   if (!selected) throw new Error('The selected category is not currently available.')
 
   const form = new FormData()
-  form.set('name', `${draft.firstName.trim()} ${draft.lastName.trim()}`.trim())
+  form.set('name', draft.name.trim())
   form.set('username', draft.username.trim())
   form.set('categoryId', selected.id)
   form.set('acceptedAgreements', 'true')
