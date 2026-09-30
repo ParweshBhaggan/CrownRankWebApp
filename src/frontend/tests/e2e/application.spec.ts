@@ -51,6 +51,8 @@ test('visitor submits the new entry contract and browses backend categories', as
   await page.getByRole('link', { name: 'Categories', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Science', exact: true })).toBeVisible()
   await page.getByRole('link', { name: /Science/ }).click()
+  await expect(page).toHaveURL(/rankings\?category=science-id/)
+  await expect(page.getByRole('heading', { name: 'Global ranking', exact: true })).toBeVisible()
   await expect(page.getByText('Grace Hopper')).toBeVisible()
   await expect(page.getByText('Ada Lovelace')).toBeVisible()
   await page.getByRole('link', { name: 'Daily rank', exact: true }).click()
