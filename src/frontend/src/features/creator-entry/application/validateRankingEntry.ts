@@ -8,9 +8,10 @@ export function validateRankingEntry(draft: RankingEntryDraft): RankingEntryVali
   const errors: RankingEntryValidationErrors = {}
   if (draft.name.trim().length < 1 || draft.name.trim().length > 100) errors.name = 'Enter a name up to 100 characters.'
   if (!usernamePattern.test(draft.username.trim())) errors.username = 'Use 2–40 letters, numbers, dots, underscores, or dashes.'
+  if (!draft.category) errors.category = 'Choose an available category.'
   if (!Number.isFinite(parseAmount(String(draft.contribution)))) errors.contribution = 'Choose $1.00–$10,000.00 with at most two decimal places.'
   const linksAreValid = draft.socialLinks.length > 0 && draft.socialLinks.length <= 5 && draft.socialLinks.every((link) => {
-    try { const url = new URL(link.url); const hosts: Record<string, string[]> = { instagram: ['instagram.com'], tiktok: ['tiktok.com'], youtube: ['youtube.com', 'youtu.be'], x: ['x.com', 'twitter.com'], twitch: ['twitch.tv'], onlyfans: ['onlyfans.com'] }; return url.protocol === 'https:' && Boolean(url.hostname) && !url.username && !url.password && link.url.length <= 500 && (link.platform === 'website' || hosts[link.platform]?.some(host => url.hostname === host || url.hostname.endsWith(`.${host}`))) } catch { return false }
+    try { const url = new URL(link.url); const hosts: Record<string, string[]> = { instagram: ['instagram.com'], tiktok: ['tiktok.com'], youtube: ['youtube.com', 'youtu.be'], x: ['x.com', 'twitter.com'], twitch: ['twitch.tv'], onlyfans: ['onlyfans.com'], facebook: ['facebook.com', 'fb.com'] }; return url.protocol === 'https:' && Boolean(url.hostname) && !url.username && !url.password && link.url.length <= 500 && Boolean(link.platform) && (!hosts[link.platform.toLowerCase()] || hosts[link.platform.toLowerCase()].some(host => url.hostname === host || url.hostname.endsWith(`.${host}`))) } catch { return false }
   })
   const platformsAreUnique = new Set(draft.socialLinks.map(link => link.platform)).size === draft.socialLinks.length
   if (!linksAreValid || !platformsAreUnique) errors.socialLinks = 'Add 1–5 unique HTTPS links matching the selected platforms.'

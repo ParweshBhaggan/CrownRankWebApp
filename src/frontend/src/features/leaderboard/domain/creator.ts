@@ -1,4 +1,4 @@
-export type SocialPlatform = 'instagram' | 'tiktok' | 'youtube' | 'x' | 'twitch' | 'onlyfans' | 'website'
+export type SocialPlatform = string
 
 export interface SocialProfile {
   readonly id: string
@@ -13,6 +13,7 @@ export interface Creator {
   readonly lastName: string
   readonly displayName: string
   readonly category: CreatorCategory
+  readonly categories?: readonly CreatorCategory[]
   readonly imageUrl: string
   readonly socialProfiles: readonly SocialProfile[]
   readonly totalContributed: number
@@ -21,14 +22,7 @@ export interface Creator {
   readonly joinedAt: string
 }
 
-export const creatorCategories = ['streamer', 'gaming', 'influencer', 'adult-entertainment', 'beauty-fashion', 'fitness-wellness', 'music', 'podcasting', 'education', 'comedy', 'art-design', 'food', 'travel', 'technology', 'business', 'other'] as const
-export type CreatorCategory = typeof creatorCategories[number]
-export const creatorCategoryLabels: Record<CreatorCategory, string> = {
-  streamer: 'Streamer', gaming: 'Gaming', influencer: 'Influencer', 'adult-entertainment': 'Adult entertainment',
-  'beauty-fashion': 'Beauty & fashion', 'fitness-wellness': 'Fitness & wellness', music: 'Music', podcasting: 'Podcasting',
-  education: 'Education', comedy: 'Comedy', 'art-design': 'Art & design', food: 'Food', travel: 'Travel',
-  technology: 'Technology', business: 'Business & finance', other: 'Other',
-}
+export type CreatorCategory = string
 
 export interface RankedCreator extends Creator {
   readonly rank: number

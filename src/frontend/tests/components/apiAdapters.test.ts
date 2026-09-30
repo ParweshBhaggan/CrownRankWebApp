@@ -1,9 +1,11 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { apiRequest, resolveApiAsset } from '../../src/shared/api/httpClient'
 import { createEntry } from '../../src/features/creator-entry/data/createEntry'
 import { ApiLeaderboardRepository } from '../../src/features/leaderboard/data/ApiLeaderboardRepository'
 import { MockPaymentGateway } from '../../src/features/payments/data/MockPaymentGateway'
 import type { RankingEntryDraft } from '../../src/features/creator-entry/domain/rankingEntry'
+
+vi.mock('../../src/features/creator-entry/data/profileImage', () => ({ profileImageDataUrl: vi.fn(async () => 'data:image/webp;base64,test') }))
 
 const originalFetch = globalThis.fetch
 afterEach(() => { globalThis.fetch = originalFetch })
@@ -30,88 +32,50 @@ describe('frontend API adapters', () => {
     )
   })
 
-  it('submits the current multipart entry contract and confirms its mock payment', async () => {
+  it('loads defaults and submits JSON with a decimal score and names from the backend', async () => {
     const requests: { url: string; init?: RequestInit }[] = []
     globalThis.fetch = async (input, init) => {
       const url = String(input)
       requests.push({ url, init })
-      if (url.endsWith('/api/categories')) return Response.json([{ id: 'category-1', name: 'Technology' }])
-      if (url.endsWith('/api/entries')) return Response.json({ entryId: 'entry-1', attemptId: 'attempt-1', checkoutUrl: 'mock://attempt-1' }, { status: 202 })
-      if (url.includes('/outcome')) return new Response(null, { status: 204 })
-      return Response.json({ state: 'Confirmed' })
+      if (url === '/api/Category') return Response.json([{ id: 'science-id', name: 'New science category' }])
+      if (url === '/api/SocialMediaDefault') return Response.json([{ id: 'social-id', name: 'New platform' }])
+      return Response.json({ id: 'entry-1' }, { status: 201 })
     }
     const draft = {
-      name: ' Ada Lovelace ', username: ' ada ', category: 'technology', contribution: 12.5,
-      socialLinks: [{ id: 'ui-only', platform: 'instagram', url: ' https://instagram.com/ada ' }],
+      name: ' Ada Lovelace ', username: ' ada ', category: 'science-id', contribution: 12.5,
+      socialLinks: [{ id: 'ui-only', platform: 'New platform', url: ' https://example.com/ada ' }],
       profileImage: new File(['image'], 'profile.png', { type: 'image/png' }),
     } satisfies RankingEntryDraft
-
     await createEntry(draft, 'ui-reference')
-
-    expect(requests.map(request => request.url)).toEqual([
-      '/api/categories',
-      '/api/entries',
-      '/api/dev/payments/attempt-1/outcome',
-      '/api/payments/attempt-1/confirm',
-    ])
-    const form = requests[1].init?.body as FormData
-    expect(form.get('name')).toBe('Ada Lovelace')
-    expect(form.get('username')).toBe('ada')
-    expect(form.get('categoryId')).toBe('category-1')
-    expect(form.get('amountInMinorUnits')).toBe('1250')
-    expect(form.get('currency')).toBe('EUR')
-    expect(form.get('socialLinks')).toBe('[{"platform":"Instagram","url":"https://instagram.com/ada"}]')
-    expect(form.get('image')).toBe(draft.profileImage)
+    expect(requests.map(request => request.url)).toEqual(['/api/Category', '/api/SocialMediaDefault', '/api/Entry'])
+    expect(requests[2].init?.headers).toEqual({ 'Content-Type': 'application/json' })
+    expect(JSON.parse(String(requests[2].init?.body))).toEqual({
+      name: 'Ada Lovelace', username: 'ada', imgUrl: 'data:image/webp;base64,test', score: 12.5,
+      categories: [{ name: 'New science category', description: '' }],
+      socialMediaPlatforms: [{ platformName: 'New platform', url: 'https://example.com/ada' }],
+    })
   })
 
-  it('maps global and daily leaderboard rows with profiles and public image URLs', async () => {
-    const paths: string[] = []
-    globalThis.fetch = async input => {
-      const url = String(input)
-      paths.push(url)
-      if (url.endsWith('/api/categories')) return Response.json([{ id: 'category-1', name: 'Technology' }])
-      if (url.includes('/api/entries/entry-1')) return Response.json({
-        id: 'entry-1', name: 'Ada Lovelace', username: 'ada', categoryId: 'category-1',
-        imageUrl: 'http://localhost:5173/uploads/profiles/one.png',
-        socialLinks: [{ platform: 'Instagram', url: 'https://instagram.com/ada' }],
-      })
-      return Response.json([{
-        entryId: 'entry-1', name: 'Ada Lovelace', username: 'ada', categoryId: 'category-1',
-        scoreInMinorUnits: 1250, currency: 'EUR', scoreReachedAtUtc: '2026-09-18T10:00:00Z', rank: 1,
-      }])
-    }
+  it('maps entries including multiple categories and sorts by score', async () => {
+    globalThis.fetch = async input => String(input) === '/api/Category'
+      ? Response.json([{ id: 'technology-id', name: 'Technology' }, { id: 'science-id', name: 'Science' }])
+      : Response.json([10, 12.5].map((score, index) => ({
+          id: `entry-${index}`, name: 'Ada Lovelace', username: `ada${index}`, score,
+          imgUrl: 'data:image/webp;base64,test', createdDate: '2026-09-30T10:00:00Z',
+          categories: [{ name: 'Technology' }, { name: 'Science' }],
+          socialMediaPlatforms: [{ platformName: 'Instagram', url: 'https://instagram.com/ada' }],
+        })))
     const repository = new ApiLeaderboardRepository()
-
-    const global = await repository.getAll()
-    const daily = await repository.getDaily('2026-09-18')
-
-    expect(paths).toContain('/api/leaderboards/global')
-    expect(paths).toContain('/api/leaderboards/daily?date=2026-09-18')
-    expect(global[0]).toMatchObject({
-      id: 'entry-1', displayName: 'Ada Lovelace', category: 'technology',
-      totalContributed: 12.5, imageUrl: 'http://localhost:5173/uploads/profiles/one.png',
-    })
-    expect(daily[0].dailyContributed).toBe(12.5)
+    const entries = await repository.getAll()
+    expect(entries.map(entry => entry.totalContributed)).toEqual([12.5, 10])
+    expect(entries[0]).toMatchObject({ category: 'technology-id', categories: ['technology-id', 'science-id'], socialProfiles: [{ platform: 'Instagram' }], imageUrl: 'data:image/webp;base64,test' })
+    await expect(repository.getDaily('2026-09-30')).rejects.toThrow('Daily rankings are not available')
     expect(resolveApiAsset('https://cdn.example/avatar.webp')).toBe('https://cdn.example/avatar.webp')
   })
 
-  it('runs the boost mock-payment flow against entry endpoints', async () => {
-    const requests: { url: string; body?: string }[] = []
-    globalThis.fetch = async (input, init) => {
-      const url = String(input)
-      requests.push({ url, body: init?.body ? String(init.body) : undefined })
-      if (url.endsWith('/boosts')) return Response.json({ attemptId: 'attempt-2' }, { status: 202 })
-      if (url.includes('/outcome')) return new Response(null, { status: 204 })
-      return Response.json({ state: 'Confirmed' })
-    }
-    const payload = { referenceId: 'ref-1', creatorId: 'entry-1', purpose: 'creator-boost', amount: 2.5, currency: 'EUR' } as const
-
-    await expect(new MockPaymentGateway().createCheckout(payload)).resolves.toEqual({ id: 'attempt-2', confirmed: true })
-    expect(requests.map(request => request.url)).toEqual([
-      '/api/entries/entry-1/boosts',
-      '/api/dev/payments/attempt-2/outcome',
-      '/api/payments/attempt-2/confirm',
-    ])
-    expect(JSON.parse(requests[0].body!)).toEqual({ amountInMinorUnits: 250, currency: 'EUR' })
+  it('does not call retired payment endpoints for an unavailable boost', async () => {
+    globalThis.fetch = vi.fn()
+    await expect(new MockPaymentGateway().createCheckout({ referenceId: 'ref', creatorId: 'entry', purpose: 'creator-boost', amount: 2.5, currency: 'EUR' })).rejects.toThrow('Boosting is not available')
+    expect(globalThis.fetch).not.toHaveBeenCalled()
   })
 })

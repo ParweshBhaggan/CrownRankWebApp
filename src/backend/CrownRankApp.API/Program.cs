@@ -13,6 +13,10 @@ namespace CrownRankApp.API
             // Add services to the container.
 
             builder.Services.AddControllers();
+            builder.Services.AddCors(options => options.AddPolicy("Frontend", policy => policy
+                .WithOrigins(builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+                    ?? ["http://localhost:5173", "https://localhost:5173"])
+                .AllowAnyHeader().AllowAnyMethod()));
             // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
             builder.Services.AddOpenApi();
 
@@ -30,6 +34,7 @@ namespace CrownRankApp.API
 
             app.UseHttpsRedirection();
 
+            app.UseCors("Frontend");
             app.UseAuthorization();
 
 
