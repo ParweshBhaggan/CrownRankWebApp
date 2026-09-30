@@ -17,5 +17,18 @@ namespace CrownRankApp.Application.Dtos.Entry
 
         public List<CategoryDto> Categories { get; set; } = new();
         public List<SocialMediaPlatformDto> SocialMediaPlatforms { get; set; } = new();
+        public static EntryResponseDto FromEntry(Domain.Models.Entry entry) => new()
+        {
+            Id = entry.Id, Name = entry.Name, Username = entry.Username, ImgUrl = entry.ImgUrl,
+            Score = entry.Score, CreatedDate = entry.CreatedDate, UpdatedDate = entry.UpdatedDate,
+            Categories = entry.Categories.Select(category => new CategoryDto
+            {
+                Name = category.Name, Description = category.Description
+            }).ToList(),
+            SocialMediaPlatforms = entry.SocialMediaPlatforms.Select(link => new SocialMediaPlatformDto
+            {
+                PlatformName = link.Platform.Name, Url = link.Url
+            }).ToList()
+        };
     }
 }

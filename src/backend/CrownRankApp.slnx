@@ -9,6 +9,9 @@
   <Folder Name="/Presentation/">
     <Project Path="CrownRankApp.API/CrownRankApp.API.csproj" Id="39ac1bb4-17fa-4544-8b0c-ff7e54fb10e2" />
   </Folder>
+  <Folder Name="/Tests/">
+    <Project Path="CrownRankApp.IntegrationTests/CrownRankApp.IntegrationTests.csproj" />
+  </Folder>
   <Folder Name="/Solution Items/">
     <File Path="Directory.Packages.props" />
   </Folder>

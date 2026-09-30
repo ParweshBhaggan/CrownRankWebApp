@@ -16,7 +16,7 @@ namespace CrownRankApp.API.Controllers
         public async Task<ActionResult<List<EntryResponseDto>>> GetEntries()
         {
             var entries = await service.GetAllAsync();
-            return Ok(entries.Select(ToResponse).ToList());
+            return Ok(entries.Select(EntryResponseDto.FromEntry).ToList());
         }
 
         [HttpGet("{id:guid}")]
@@ -33,7 +33,7 @@ namespace CrownRankApp.API.Controllers
                 return NotFound($"Entry with id {id} not found.");
             }
 
-            return Ok(ToResponse(entry));
+            return Ok(EntryResponseDto.FromEntry(entry));
         }
 
         [HttpPost]
@@ -45,26 +45,39 @@ namespace CrownRankApp.API.Controllers
             try
             {
                 var entry = await service.CreateAsync(dto);
-                return CreatedAtAction(nameof(GetEntryById), new { id = entry.Id }, ToResponse(entry));
+                return CreatedAtAction(nameof(GetEntryById), new { id = entry.Id }, EntryResponseDto.FromEntry(entry));
             }
             catch (ArgumentException exception) { return BadRequest(new { error = exception.Message }); }
             catch (InvalidOperationException exception) { return Conflict(new { error = exception.Message }); }
         }
 
-        // Project the EF graph to a flat contract so category/entry back-references cannot cycle.
-        private static EntryResponseDto ToResponse(Entry entry) => new()
+        [HttpPost("{id:guid}/boost")]
+        [EndpointSummary("Add a positive amount to an entry score")]
+        [ProducesResponseType(typeof(EntryResponseDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status409Conflict)]
+        public async Task<ActionResult<EntryResponseDto>> BoostScore(Guid id, [FromBody] BoostScoreDto dto)
         {
-            Id = entry.Id, Name = entry.Name, Username = entry.Username, ImgUrl = entry.ImgUrl,
-            Score = entry.Score, CreatedDate = entry.CreatedDate, UpdatedDate = entry.UpdatedDate,
-            Categories = entry.Categories.Select(category => new CrownRankApp.Application.Dtos.Category.CategoryDto
+            try
             {
-                Name = category.Name, Description = category.Description
-            }).ToList(),
-            SocialMediaPlatforms = entry.SocialMediaPlatforms.Select(link => new CrownRankApp.Application.Dtos.SocialMedia.SocialMediaPlatformDto
-            {
-                PlatformName = link.Platform.Name, Url = link.Url
-            }).ToList()
-        };
+                var entry = await service.BoostScoreAsync(id, dto.Amount, dto.ReferenceId);
+                if (entry == null) return NotFound();
+                return Ok(EntryResponseDto.FromEntry(entry));
+            }
+            catch (ArgumentException exception) { return BadRequest(new { error = exception.Message }); }
+            catch (InvalidOperationException exception) { return Conflict(new { error = exception.Message }); }
+        }
+
+        [HttpGet("daily")]
+        [EndpointSummary("Get a daily ranking by UTC date")]
+        [ProducesResponseType(typeof(List<DailyEntryResponseDto>), StatusCodes.Status200OK)]
+        public async Task<ActionResult<List<DailyEntryResponseDto>>> GetDaily([FromQuery] DateOnly? date)
+        {
+            var selected = date ?? DateOnly.FromDateTime(DateTime.UtcNow);
+            if (selected == DateOnly.MaxValue) return BadRequest(new { error = "Date is out of range." });
+            return Ok(await service.GetDailyAsync(selected));
+        }
 
         [HttpDelete("{id:guid}")]
         [EndpointSummary("Delete an entry by ID")]

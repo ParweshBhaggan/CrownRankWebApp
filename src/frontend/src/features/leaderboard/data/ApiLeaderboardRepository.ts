@@ -21,12 +21,15 @@ export function getSocialMediaDefaults(): Promise<readonly ApiSocialMediaDefault
   return apiRequest('/api/SocialMediaDefault')
 }
 export class ApiLeaderboardRepository implements LeaderboardRepository {
-  async getAll(): Promise<readonly Creator[]> {
+  private async load(path: string, daily = false): Promise<readonly Creator[]> {
     const [entries, categories] = await Promise.all([
-      apiRequest<readonly ApiEntry[]>('/api/Entry'), getCategories(),
+      apiRequest<readonly (ApiEntry | { entry: ApiEntry; dailyScore: number; scoreReachedDate: string })[]>(path), getCategories(),
     ])
     const ids = new Map(categories.map(category => [category.name, category.id]))
-    return entries.map(entry => {
+    return entries.map(row => {
+      const entry = 'entry' in row ? row.entry : row
+      const score = 'dailyScore' in row ? row.dailyScore : entry.score
+      const reachedDate = 'scoreReachedDate' in row ? row.scoreReachedDate : entry.updatedDate ?? entry.createdDate
       const [firstName, ...remainingName] = entry.name.trim().split(/\s+/)
       const categoryIds = entry.categories.map(category => ids.get(category.name) ?? category.name)
       return {
@@ -36,13 +39,13 @@ export class ApiLeaderboardRepository implements LeaderboardRepository {
         socialProfiles: entry.socialMediaPlatforms.map((link, index) => ({
           id: `${entry.id}-social-${index}`, platform: link.platformName, url: link.url,
         })),
-        totalContributed: entry.score, dailyContributed: 0,
-        scoreReachedAt: entry.updatedDate ?? entry.createdDate, joinedAt: entry.createdDate,
+        totalContributed: score, dailyContributed: daily ? score : 0,
+        scoreReachedAt: reachedDate, joinedAt: entry.createdDate,
       }
-    }).sort((a, b) => b.totalContributed - a.totalContributed || a.joinedAt.localeCompare(b.joinedAt) || a.id.localeCompare(b.id))
+    })
   }
-  async getDaily(_date: string): Promise<readonly Creator[]> {
-    void _date
-    throw new Error('Daily rankings are not available in the current backend yet.')
+  getAll(): Promise<readonly Creator[]> { return this.load('/api/Entry') }
+  getDaily(date: string): Promise<readonly Creator[]> {
+    return this.load(`/api/Entry/daily?date=${encodeURIComponent(date)}`, true)
   }
 }
