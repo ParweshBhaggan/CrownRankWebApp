@@ -3,9 +3,9 @@ import type { Creator } from '../../leaderboard/domain/creator'
 import type { PaymentGateway } from '../domain/payment'
 import { formatCurrency, parseAmount } from '../../../shared/format/currency'
 
-interface Props { creator: Creator; gateway: PaymentGateway; onClose: () => void; onConfirmed: () => void }
+interface Props { creator: Creator; gateway: PaymentGateway; onClose: () => void; onConfirmed: () => void; available?: boolean }
 
-export function BoostDialog({ creator, gateway, onClose, onConfirmed }: Props) {
+export function BoostDialog({ creator, gateway, onClose, onConfirmed, available = true }: Props) {
   const ref = useRef<HTMLDialogElement>(null)
   const reference = useRef(crypto.randomUUID())
   const submitting = useRef(false)
@@ -18,7 +18,7 @@ export function BoostDialog({ creator, gateway, onClose, onConfirmed }: Props) {
   const close = () => { if (!submitting.current) onClose() }
   async function submit(event: FormEvent) {
     event.preventDefault()
-    if (submitting.current) return
+    if (submitting.current || !available) return
     const value = submittedAmount ?? parseAmount(amount)
     if (!Number.isFinite(value)) { setError('Choose $1.00–$10,000.00 with at most two decimal places.'); return }
     submitting.current = true
@@ -37,10 +37,10 @@ export function BoostDialog({ creator, gateway, onClose, onConfirmed }: Props) {
     <button className="icon-button dialog-close" onClick={close} disabled={busy} aria-label="Close">×</button>
     {ready ? <div className="boost-success" role="status"><span>✓</span><h2>Boost confirmed</h2><p>Your contribution was saved. This was a mock payment; no money was charged.</p><button className="primary-button" onClick={close}>Done</button></div> : <form onSubmit={submit} noValidate>
       <p className="eyebrow">Boost this creator</p><div className="boost-person"><img src={creator.imageUrl} alt="" /><div><h2>{creator.displayName}</h2><p>@{creator.username}</p></div></div>
-      <label htmlFor="boost-amount">Boost amount</label><div className="amount-input"><span>€</span><input id="boost-amount" type="number" min="1" max="10000" step="0.01" value={amount} disabled={busy || submittedAmount !== undefined} onChange={(e) => setAmount(e.target.value)} /></div>
-      <div className="quick-amounts">{[10,25,50,100].map(value => <button key={value} type="button" disabled={busy || submittedAmount !== undefined} onClick={() => setAmount(String(value))}>{'€'}{value}</button>)}</div>
+      {!available && <p role="status">Boosting is not available in the current backend yet.</p>}<label htmlFor="boost-amount">Boost amount</label><div className="amount-input"><span>€</span><input id="boost-amount" type="number" min="1" max="10000" step="0.01" value={amount} disabled={!available || busy || submittedAmount !== undefined} onChange={(e) => setAmount(e.target.value)} /></div>
+      <div className="quick-amounts">{[10,25,50,100].map(value => <button key={value} type="button" disabled={!available || busy || submittedAmount !== undefined} onClick={() => setAmount(String(value))}>{'€'}{value}</button>)}</div>
       {error && <p role="alert" className="field-error">{error}</p>}
-      <button className="primary-button full" type="submit" disabled={busy}>{busy ? 'Saving Boost…' : `${error ? 'Retry' : 'Confirm mock payment'} · ${formatCurrency(parseAmount(amount))}`}</button><small className="secure-note">No account required · No money is charged</small>
+      <button className="primary-button full" type="submit" disabled={!available || busy}>{busy ? 'Saving Boost…' : `${!available ? 'Boost unavailable' : error ? 'Retry' : 'Confirm mock payment'} · ${formatCurrency(parseAmount(amount))}`}</button><small className="secure-note">No account required · No money is charged</small>
     </form>}
   </dialog>
 }

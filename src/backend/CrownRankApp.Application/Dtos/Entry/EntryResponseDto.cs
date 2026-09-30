@@ -1,4 +1,4 @@
-﻿using CrownRankApp.Application.Dtos.Category;
+using CrownRankApp.Application.Dtos.Category;
 using CrownRankApp.Application.Dtos.SocialMedia;
 
 namespace CrownRankApp.Application.Dtos.Entry
@@ -6,6 +6,8 @@ namespace CrownRankApp.Application.Dtos.Entry
     public class EntryResponseDto
     {
         public Guid Id { get; set; }
+        public DateTime CreatedDate { get; set; }
+        public DateTime? UpdatedDate { get; set; }
 
         public string Name { get; set; } = string.Empty;
         public string Username { get; set; } = string.Empty;

@@ -1,11 +1,13 @@
 import { Link } from 'react-router-dom'
 import type { RankedCreator } from '../domain/creator'
-import { creatorCategoryLabels } from '../domain/creator'
+import { useLookups } from '../../../shared/config/useLookups'
 import { formatCurrency } from '../../../shared/format/currency'
 
 interface Props { creators: readonly RankedCreator[]; onBoost: (creator: RankedCreator) => void; compact?: boolean }
 
 export function RankingList({ creators, onBoost, compact = false }: Props) {
+  const { categories } = useLookups()
+  const creatorCategoryLabels = Object.fromEntries(categories.map(category => [category.id, category.name]))
   return <ol className={`rank-list ${compact ? 'is-compact' : ''}`}>
     {creators.map((creator) => <li key={creator.id} className={creator.rank <= 3 ? `podium rank-${creator.rank}` : ''}>
       <span className="rank-number">#{creator.rank}</span>

@@ -1,33 +1,20 @@
 # CrownRank
 
-CrownRank is a fan-powered creator leaderboard built with React, TypeScript, ASP.NET Core (.NET 10), EF Core, and PostgreSQL. Public users do not create accounts or log in. Creator profiles contain names, a username, category, social links, and an optional photo. Location is not collected or included in the active data model.
-
-## Current local flow
-
-1. Enter Ranking submits the complete profile and optional image to the API.
-2. The backend mock confirms the opening contribution and saves the creator and contribution together. No payment provider is contacted and no money is charged.
-3. A matching pending entry left by an older interrupted request is completed on retry.
-4. Boost records another simulated contribution against an existing visible creator.
-5. Boards refresh after confirmation and explicit retries. Window focus does not restart in-flight requests; this avoids repeated cancellations while switching between the browser and debugger. Read requests time out with a retry message after 30 seconds.
-
-Entry references are stable across retries in the current dialog. A new request with the same matching username can also recover a stranded pending entry created by the earlier two-step implementation.
-
-All creator mutation and mock checkout routes are registered only in Development. There is no login, registration, admin UI, Stripe integration, deployment, or container work in this change.
+CrownRank uses React/TypeScript, ASP.NET Core (.NET 10), EF Core, and PostgreSQL.
 
 ## Run locally
 
-Prerequisites: .NET 10 SDK, Node.js 22.18+ (or Node.js 24), and local PostgreSQL 16+.
+Install the .NET 10 SDK, Node.js 24, and PostgreSQL. Configure `Database:Provider` as `postgresql` and `ConnectionStrings:DefaultConnection` in API configuration or user secrets.
 
-Set `ConnectionStrings:Database` using .NET user secrets or environment variables. The API listens on `http://localhost:5281` and `https://localhost:7208`; the frontend defaults to `http://localhost:5173`. During local development, Vite proxies `/api` and `/uploads` to the HTTPS API. Use `src/frontend/.env.example` only when a direct browser-facing API URL override is needed.
-
-Startup never creates, migrates, or updates the database schema. Migrations remain owner-managed.
-
-This model change removes `Location`, introduces pending-entry and hiding fields, and replaces minor-unit money properties with decimal dollar amounts. When preparing your migration against existing data, preserve and convert the old contribution amounts: `1250` cents must become `12.50` dollars. EF may generate drop/add operations for renamed properties; review them before applying the migration. Do not reinterpret cents as whole dollars or discard the ledger unintentionally.
+From the repository root:
 
 ```bash
-dotnet restore CrownRank.slnx
-dotnet run --project src/backend/CrownRank.Api
+dotnet restore src/backend/CrownRankApp.slnx
+dotnet ef database update --project src/backend/CrownRankApp.Infrastructure --startup-project src/backend/CrownRankApp.API
+dotnet run --project src/backend/CrownRankApp.API --launch-profile http
 ```
+
+The HTTP API uses `http://localhost:5169`; the HTTPS profile uses `https://localhost:7076`. Both launch profiles open `/scalar` when started by an IDE or `dotnet watch`. Plain `dotnet run` does not launch a browser; open `http://localhost:5169/scalar` manually. Scalar and OpenAPI are available in Development.
 
 ```bash
 cd src/frontend
@@ -35,62 +22,52 @@ npm ci
 npm run dev
 ```
 
-Swagger opens automatically at `https://localhost:7208/swagger` for the HTTPS launch profile and is also available at `http://localhost:5281/swagger` in Development. The database starts empty unless you explicitly enable `SeedData:Enabled` through configuration. Optional seeding inserts sample creators only into an empty database and requires an already updated schema.
+Vite proxies `/api` to `http://localhost:5169`. For a direct API connection, set `VITE_API_URL` and configure `Cors:AllowedOrigins` in the API (defaults include `http://localhost:5173` and `https://localhost:5173`).
 
-## API contracts
+## Current flow
 
-| Method | Route | Behavior |
+- Categories and social platform options come from the backend, including newly added options.
+- Entry submission sends JSON to `/api/Entry`. An opening amount of €12.50 becomes `score: 12.5`; no payment provider is called or money charged.
+- The entry, selected existing categories, and social links are saved together. Invalid selections return a validation error; existing usernames return a conflict.
+- The board loads all entries, orders them by score descending, and refreshes after submission. An entry belonging to several categories appears in each category.
+- Boosts and daily rankings are unavailable because this backend has no boost endpoint or daily contribution history. Their UI explains this without calling retired endpoints.
+
+## API contract used by the frontend
+
+| Method | Route | Purpose |
 |---|---|---|
-| GET | `/api/health` | Process health |
-| GET | `/api/creators` | Visible, confirmed creators in global order |
-| GET | `/api/creators/{id}` | Visible creator details |
-| GET | `/api/rankings/daily/{date}` | Ranking for a UTC calendar date |
-| POST | `/api/creators` | Pending entry; Development only |
-| POST | `/api/payments/checkout` | Confirm a simulated contribution; Development only |
-| DELETE | `/api/creators/{id}` | Hide a public profile; retain its ledger; Development only |
+| GET | `/api/Category` | All categories with IDs, names, descriptions |
+| GET | `/api/SocialMediaDefault` | All social platform IDs and names |
+| GET | `/api/Entry` | Entries with decimal scores, categories, social profiles, and dates |
+| POST | `/api/Entry` | Save an entry directly |
 
-Entry submission uses multipart fields: `name`, `username`, `categoryId`, `acceptedAgreements`, `amountInMinorUnits`, `currency`, `socialLinks`, and required `image`.
+Example submission:
 
-Mock Boost checkout uses JSON: `referenceId` (UUID), `creatorId`, `purpose` (`creator-boost`), `amount`, and `currency` (`USD`). Its response contains `id` and `confirmed`. Entry mock confirmation is part of the multipart creator request so profile registration and its opening contribution are saved together.
+```json
+{
+  "name": "Ada Lovelace",
+  "username": "ada",
+  "imgUrl": "data:image/webp;base64,...",
+  "score": 12.5,
+  "categories": [{ "name": "Technology", "description": "" }],
+  "socialMediaPlatforms": [{ "platformName": "Instagram", "url": "https://instagram.com/ada" }]
+}
+```
 
-A unique payment reference prevents duplicate credits; reusing a reference with different payment details is rejected. This mock orchestration must not be reused as proof of payment when integrating a real provider.
+The current API accepts `imgUrl`, not a multipart upload. The frontend resizes uploaded images to fit within 300×250, preserves their aspect ratio, and stores the resulting WebP data URL in `imgUrl`. A dedicated server asset upload service remains future work. Frontend image inputs accept JPG, PNG, and WebP up to 5 MB.
 
-## Money and rankings
-
-Money uses .NET `decimal`, PostgreSQL `numeric(18,2)`, and dollar-based API fields (`amount`, `initialAmount`, `totalContributed`, `dailyContributed`). The supported contribution range is $1.00–$10,000.00, with at most two decimal places. Inputs with fractional cents are rejected rather than rounded. Frontend input parsing uses cent precision internally, but the API and database represent decimal dollars.
-
-The backend orders higher scores first, then the time the creator reached that score, then creator ID for deterministic exact ties. The frontend preserves that order. Category-filtered boards number positions within the category.
-
-Daily scores include confirmations within the selected UTC day. Historical results are derived from the retained ledger, not frozen snapshots. Later-day Boosts do not add to earlier dates. Hidden profiles are excluded from public boards and archives; their contributions remain stored. Hiding is moderation, not erasure of personal data or image files.
-
-## Images and validation
-
-JPEG, PNG, WebP, GIF, and BMP are accepted up to 8 MB. The server identifies actual image content and checks the 25-megapixel limit before full decoding. It uses the first frame of animated images, applies orientation, crops to 1024×1024, removes EXIF/ICC metadata, and writes WebP under ignored local profile uploads.
-
-Usernames allow 2–40 letters, numbers, dots, underscores, or dashes. Names are required with an 80-character maximum. Entries require 1–5 HTTPS social links; platform-specific links must match the selected platform's hostname. Website links remain general HTTPS links.
+Entry API responses use DTOs to avoid serializing circular EF navigation properties. No database model changes are introduced by this integration, so no new migration is needed beyond applying the repository's existing migrations.
 
 ## Checks
 
 ```bash
-dotnet test CrownRank.slnx
+dotnet build src/backend/CrownRankApp.slnx
 cd src/frontend
 npm test
 npm run lint
 npm run build
-npx playwright install chromium # first browser-test run only
+npx playwright install chromium
 npm run test:e2e
 ```
 
-Backend tests cover domain rules, atomic entry confirmation, interrupted-entry recovery, idempotent retries, decimal Boost amounts, unconfirmed mock results, UTC ranking boundaries, ties, hiding without ledger deletion, social URL safety, EF model constraints, and the complete development HTTP API flow. API tests replace persistence and external adapters inside the test host, so they never read or update the developer database. PostgreSQL concurrency tests remain future work.
-
-Frontend tests are split into fast logic tests, Vitest/Testing Library component and API-adapter tests, and a Playwright browser journey. The browser journey uses intercepted API responses and covers navigation, entry registration, leaderboard refresh, mock Boost confirmation, and the no-account experience.
-
-## Later work
-
-- Durable recovery and cancellation/expiry for future real-provider checkout sessions.
-- Database integration tests for concurrent confirmations and entry conflicts.
-- Server-side pagination and aggregate queries as the dataset grows.
-- Real payment integration with verified, idempotent provider events only when deliberately enabled.
-- Profile correction and moderation workflows, and the remaining pre-launch review of operator details, provider eligibility, and ImageSharp licensing.
-
-No license has been selected. All rights are reserved unless the repository owner adds one.
+Browser tests intercept API responses and verify registration, decimal score submission, backend lookup options, category filtering, refresh, and unavailable feature states. They do not replace an end-to-end check against PostgreSQL.

@@ -1,93 +1,48 @@
 import { apiRequest, resolveApiAsset } from '../../../shared/api/httpClient'
-import {
-  creatorCategories,
-  creatorCategoryLabels,
-  type Creator,
-  type CreatorCategory,
-  type LeaderboardRepository,
-  type SocialPlatform,
-} from '../domain/creator'
+import type { Creator, LeaderboardRepository } from '../domain/creator'
 
-export interface ApiCategory {
-  readonly id: string
-  readonly name: string
-  readonly description?: string
-}
-
-interface ApiLeaderboardRow {
-  readonly entryId: string
-  readonly name: string
-  readonly username: string
-  readonly categoryId: string
-  readonly scoreInMinorUnits: number
-  readonly currency: string
-  readonly scoreReachedAtUtc: string
-  readonly rank: number
-}
-
+export interface ApiCategory { readonly id: string; readonly name: string; readonly description?: string }
+export interface ApiSocialMediaDefault { readonly id: string; readonly name: string }
 interface ApiEntry {
   readonly id: string
   readonly name: string
   readonly username: string
-  readonly categoryId: string
-  readonly imageUrl: string
-  readonly socialLinks: readonly {
-    readonly platform: string
-    readonly url: string
-    readonly customPlatformName?: string
-  }[]
+  readonly imgUrl: string
+  readonly score: number
+  readonly createdDate: string
+  readonly updatedDate?: string
+  readonly categories: readonly { readonly name: string }[]
+  readonly socialMediaPlatforms: readonly { readonly platformName: string; readonly url: string }[]
 }
-
-export async function getCategories(): Promise<readonly ApiCategory[]> {
-  return apiRequest<readonly ApiCategory[]>('/api/categories')
+export function getCategories(): Promise<readonly ApiCategory[]> {
+  return apiRequest('/api/Category')
 }
-
-export function categorySlug(category: ApiCategory): CreatorCategory {
-  const byLabel = creatorCategories.find(
-    slug => creatorCategoryLabels[slug].toLowerCase() === category.name.toLowerCase(),
-  )
-  if (byLabel) return byLabel
-  if (category.name.toLowerCase() === 'business') return 'business'
-  const normalized = category.name.toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
-  return creatorCategories.find(slug => slug === normalized) ?? 'other'
+export function getSocialMediaDefaults(): Promise<readonly ApiSocialMediaDefault[]> {
+  return apiRequest('/api/SocialMediaDefault')
 }
-
-async function loadLeaderboard(path: string): Promise<readonly Creator[]> {
-  const [rows, categories] = await Promise.all([
-    apiRequest<readonly ApiLeaderboardRow[]>(path),
-    getCategories(),
-  ])
-  const categoryById = new Map(categories.map(category => [category.id, categorySlug(category)]))
-  return Promise.all(rows.map(async row => {
-    const profile = await apiRequest<ApiEntry>(`/api/entries/${row.entryId}`)
-    const [firstName, ...remainingName] = profile.name.trim().split(/\s+/)
-    return {
-      id: row.entryId,
-      username: row.username,
-      firstName,
-      lastName: remainingName.join(' '),
-      displayName: row.name,
-      category: categoryById.get(row.categoryId) ?? 'other',
-      imageUrl: resolveApiAsset(profile.imageUrl),
-      socialProfiles: profile.socialLinks.map((link, index) => ({
-        id: `${row.entryId}-social-${index}`,
-        platform: link.platform.toLowerCase() as SocialPlatform,
-        url: link.url,
-      })),
-      totalContributed: row.scoreInMinorUnits / 100,
-      dailyContributed: row.scoreInMinorUnits / 100,
-      scoreReachedAt: row.scoreReachedAtUtc,
-      joinedAt: row.scoreReachedAtUtc,
-    }
-  }))
-}
-
 export class ApiLeaderboardRepository implements LeaderboardRepository {
-  getAll(): Promise<readonly Creator[]> {
-    return loadLeaderboard('/api/leaderboards/global')
+  async getAll(): Promise<readonly Creator[]> {
+    const [entries, categories] = await Promise.all([
+      apiRequest<readonly ApiEntry[]>('/api/Entry'), getCategories(),
+    ])
+    const ids = new Map(categories.map(category => [category.name, category.id]))
+    return entries.map(entry => {
+      const [firstName, ...remainingName] = entry.name.trim().split(/\s+/)
+      const categoryIds = entry.categories.map(category => ids.get(category.name) ?? category.name)
+      return {
+        id: entry.id, username: entry.username, displayName: entry.name,
+        firstName, lastName: remainingName.join(' '), category: categoryIds[0] ?? '', categories: categoryIds,
+        imageUrl: resolveApiAsset(entry.imgUrl),
+        socialProfiles: entry.socialMediaPlatforms.map((link, index) => ({
+          id: `${entry.id}-social-${index}`, platform: link.platformName, url: link.url,
+        })),
+        totalContributed: entry.score, dailyContributed: 0,
+        scoreReachedAt: entry.updatedDate ?? entry.createdDate, joinedAt: entry.createdDate,
+      }
+    }).sort((a, b) => b.totalContributed - a.totalContributed || a.joinedAt.localeCompare(b.joinedAt) || a.id.localeCompare(b.id))
   }
-
-  getDaily(date: string): Promise<readonly Creator[]> {
-    return loadLeaderboard(`/api/leaderboards/daily?date=${encodeURIComponent(date)}`)
+  async getDaily(_date: string): Promise<readonly Creator[]> {
+    void _date
+    throw new Error('Daily rankings are not available in the current backend yet.')
   }
 }
