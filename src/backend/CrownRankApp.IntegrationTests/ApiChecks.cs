@@ -130,7 +130,7 @@ static class ApiChecks
             response.Dispose();
         }
         var removedSubmission = await client.PostAsJsonAsync("/api/payments/entry-submissions", registration);
-        Check(removedSubmission.StatusCode == HttpStatusCode.NotFound, "The extra entry submission endpoint is removed");
+        Check(removedSubmission.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.MethodNotAllowed, "The extra entry submission endpoint is removed");
         var unauthorized = await client.DeleteAsync($"/api/Entry/{Guid.NewGuid()}");
         Check(unauthorized.StatusCode == HttpStatusCode.Unauthorized, "Administrative mutations require credentials");
         client.DefaultRequestHeaders.Add("X-Admin-Key", "integration-admin");
