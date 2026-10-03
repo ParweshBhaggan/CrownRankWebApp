@@ -1,6 +1,7 @@
 // The current API accepts an image URL rather than a multipart upload.
 // Persist a small, resized data URL until an asset upload service is available.
-export async function profileImageDataUrl(file: File): Promise<string> {
+export async function profileImageDataUrl(file: File): Promise<string>
+{
   const url = URL.createObjectURL(file)
   try {
     const image = new Image()
@@ -14,5 +15,7 @@ export async function profileImageDataUrl(file: File): Promise<string> {
     if (!context) throw new Error('Could not prepare your profile image.')
     context.drawImage(image, 0, 0, canvas.width, canvas.height)
     return canvas.toDataURL('image/webp', 0.85)
-  } finally { URL.revokeObjectURL(url) }
+  } finally {
+    URL.revokeObjectURL(url)
+  }
 }

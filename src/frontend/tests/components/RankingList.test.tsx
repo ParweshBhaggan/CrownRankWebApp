@@ -5,8 +5,11 @@ import { expect, it, vi } from 'vitest'
 import { LookupProvider } from '../../src/shared/config/LookupProvider'
 import { RankingList } from '../../src/features/leaderboard/ui/RankingList'
 
-vi.mock('../../src/features/leaderboard/data/ApiLeaderboardRepository', () => ({
+vi.mock('../../src/shared/api/services/categoryApi', () => ({
   getCategories: vi.fn(async () => [{ id: 'technology-id', name: 'Technology' }]),
+}))
+
+vi.mock('../../src/shared/api/services/socialMediaDefaultApi', () => ({
   getSocialMediaDefaults: vi.fn(async () => []),
 }))
 

@@ -5,8 +5,11 @@ import { EnterRankingDialog } from '../../src/features/creator-entry/ui/EnterRan
 import { LookupProvider } from '../../src/shared/config/LookupProvider'
 import { createEntry } from '../../src/features/creator-entry/data/createEntry'
 
-vi.mock('../../src/features/leaderboard/data/ApiLeaderboardRepository', () => ({
+vi.mock('../../src/shared/api/services/categoryApi', () => ({
   getCategories: vi.fn(async () => [{ id: 'category-technology', name: 'Technology' }, { id: 'category-science', name: 'Science' }]),
+}))
+
+vi.mock('../../src/shared/api/services/socialMediaDefaultApi', () => ({
   getSocialMediaDefaults: vi.fn(async () => [{ id: 'platform-instagram', name: 'Instagram' }, { id: 'platform-facebook', name: 'Facebook' }]),
 }))
 

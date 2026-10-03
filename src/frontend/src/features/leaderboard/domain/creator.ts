@@ -33,4 +33,3 @@ export interface LeaderboardRepository {
   getAll(): Promise<readonly Creator[]>
   getDaily(date: string): Promise<readonly Creator[]>
 }
-
