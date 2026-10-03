@@ -14,7 +14,7 @@ public sealed class CheckoutService(IPaymentStore store, IPaymentGateway gateway
         settings.ValidateAmount(request.Amount);
         if (!request.AcceptedAgreements) throw new ArgumentException("Accept the terms and privacy policy before paying.");
         if (string.IsNullOrWhiteSpace(request.Name) || request.Name.Trim().Length > 100
-            || !Regex.IsMatch(request.Username ?? "", "^[a-zA-Z0-9._-]{2,40}$")
+            || string.IsNullOrWhiteSpace(request.Username) || !Regex.IsMatch(request.Username, "^[a-zA-Z0-9._-]{2,40}$")
             || request.CategoryId == Guid.Empty || request.SocialProfiles is null || request.SocialProfiles.Count is < 1 or > 5
             || request.SocialProfiles.Select(profile => profile.PlatformId).Distinct().Count() != request.SocialProfiles.Count)
             throw new ArgumentException("Provide a valid name, username, category, and one to five distinct social profiles.");
@@ -72,15 +72,6 @@ public sealed class CheckoutService(IPaymentStore store, IPaymentGateway gateway
         await ApplyAsync(await gateway.RetrieveAsync(checkout.SessionId, ct), ct);
     }
 
-    public async Task RecoverAsync(CancellationToken ct)
-    {
-        foreach (var operation in await store.GetPendingAsync(ct))
-        {
-            ct.ThrowIfCancellationRequested();
-            await CheckoutAsync(operation, ct);
-        }
-    }
-
     private async Task<CheckoutResponse> StartAsync(PaymentOperation operation, EntryCheckoutRequest? entry, CancellationToken ct)
     {
         var existing = await store.FindAsync(operation.Id, ct);
@@ -105,8 +96,20 @@ public sealed class CheckoutService(IPaymentStore store, IPaymentGateway gateway
         {
             // Do not recreate an uncertain session after Stripe's idempotency retention window.
             if (operation.ExpiresAt <= clock.GetUtcNow().UtcDateTime.AddMinutes(31))
-                return new(operation.Id, null, "pending");
-            checkout = await gateway.CreateAsync(operation, ct);
+            {
+                var recovered = await gateway.FindAsync(operation, ct);
+                if (recovered is null)
+                {
+                    if (operation.CreatedDate < clock.GetUtcNow().UtcDateTime.AddDays(-2))
+                    {
+                        await store.ExpireUncreatedAsync(operation.Id, ct);
+                        return new(operation.Id, null, "expired");
+                    }
+                    return new(operation.Id, null, "pending");
+                }
+                checkout = recovered;
+            }
+            else checkout = await gateway.CreateAsync(operation, ct);
             await store.AttachSessionAsync(operation.Id, checkout, ct);
         }
         await ApplyAsync(checkout, ct);

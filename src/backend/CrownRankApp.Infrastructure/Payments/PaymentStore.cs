@@ -63,6 +63,7 @@ public sealed class PaymentStore(ApplicationDbContext context, ProfileImageStora
 
     public async Task AttachSessionAsync(Guid id, VerifiedCheckout checkout, CancellationToken ct)
     {
+        if (id != checkout.OperationId) throw new InvalidOperationException("Checkout operation mismatch.");
         var changed = await context.PaymentOperations.Where(operation => operation.Id == id
             && (operation.SessionId == null || operation.SessionId == checkout.SessionId))
             .ExecuteUpdateAsync(setters => setters.SetProperty(operation => operation.SessionId, checkout.SessionId)
@@ -75,10 +76,10 @@ public sealed class PaymentStore(ApplicationDbContext context, ProfileImageStora
         await AttachSessionAsync(checkout.OperationId, checkout, ct);
         if (!checkout.Paid)
         {
-            if (checkout.Status == "expired")
+            if (checkout.Status == "expired" || checkout.Failed)
                 await context.PaymentOperations.Where(operation => operation.Id == checkout.OperationId
                     && operation.Status != PaymentStatus.Paid && operation.FulfilledAt == null)
-                    .ExecuteUpdateAsync(setters => setters.SetProperty(operation => operation.Status, PaymentStatus.Expired)
+                    .ExecuteUpdateAsync(setters => setters.SetProperty(operation => operation.Status, checkout.Failed ? PaymentStatus.Failed : PaymentStatus.Expired)
                         .SetProperty(operation => operation.ReservedUsername, (string?)null), ct);
             else if (checkout.Status == "complete")
                 await context.PaymentOperations.Where(operation => operation.Id == checkout.OperationId
@@ -137,14 +138,13 @@ public sealed class PaymentStore(ApplicationDbContext context, ProfileImageStora
         context.ChangeTracker.Clear();
     }
 
+    public Task ExpireUncreatedAsync(Guid id, CancellationToken ct) => context.PaymentOperations.Where(operation => operation.Id == id
+        && operation.SessionId == null && operation.Status == PaymentStatus.Pending)
+        .ExecuteUpdateAsync(setters => setters.SetProperty(operation => operation.Status, PaymentStatus.Expired)
+            .SetProperty(operation => operation.ReservedUsername, (string?)null), ct);
+
     public async Task<List<PaymentOperation>> GetPendingAsync(CancellationToken ct)
     {
-        // An uncertain session can only have lived for one hour; retain the reservation for two days before releasing it.
-        var cutoff = clock.GetUtcNow().UtcDateTime.AddDays(-2);
-        await context.PaymentOperations.Where(operation => operation.SessionId == null && operation.CreatedDate < cutoff
-            && operation.Status == PaymentStatus.Pending)
-            .ExecuteUpdateAsync(setters => setters.SetProperty(operation => operation.Status, PaymentStatus.Expired)
-                .SetProperty(operation => operation.ReservedUsername, (string?)null), ct);
         var imageCutoff = clock.GetUtcNow().UtcDateTime.AddDays(-7);
         var abandoned = await context.PaymentOperations.AsNoTracking().Where(operation => operation.Status == PaymentStatus.Expired
             && operation.Purpose == PaymentPurpose.Entry && operation.CreatedDate < imageCutoff && operation.EntryJson != null).ToListAsync(ct);
@@ -154,9 +154,13 @@ public sealed class PaymentStore(ApplicationDbContext context, ProfileImageStora
             await context.PaymentOperations.Where(payment => payment.Id == operation.Id && payment.Status == PaymentStatus.Expired)
                 .ExecuteUpdateAsync(setters => setters.SetProperty(payment => payment.EntryJson, (string?)null), ct);
         }
-        return await context.PaymentOperations.AsNoTracking().Where(operation => operation.FulfilledAt == null
+        var pending = await context.PaymentOperations.AsNoTracking().Where(operation => operation.FulfilledAt == null
             && (operation.Status == PaymentStatus.Pending || operation.Status == PaymentStatus.Processing || operation.Status == PaymentStatus.Paid))
-            .OrderBy(operation => operation.CreatedDate).Take(100).ToListAsync(ct);
+            .OrderBy(operation => operation.LastCheckedAt ?? operation.CreatedDate).Take(100).ToListAsync(ct);
+        var ids = pending.Select(operation => operation.Id).ToList();
+        await context.PaymentOperations.Where(operation => ids.Contains(operation.Id))
+            .ExecuteUpdateAsync(setters => setters.SetProperty(operation => operation.LastCheckedAt, clock.GetUtcNow().UtcDateTime), ct);
+        return pending;
     }
 
     private static void ValidateSocialHost(string platform, string url)

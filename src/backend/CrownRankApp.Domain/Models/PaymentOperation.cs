@@ -20,6 +20,7 @@ public sealed class PaymentOperation : Entity
     public string? CheckoutUrl { get; set; }
     public string? PaymentIntentId { get; set; }
     public DateTime ExpiresAt { get; set; }
+    public DateTime? LastCheckedAt { get; set; }
     public DateTime? PaidAt { get; set; }
     public DateTime? FulfilledAt { get; set; }
     public DateTime? AgreementsAcceptedAt { get; set; }

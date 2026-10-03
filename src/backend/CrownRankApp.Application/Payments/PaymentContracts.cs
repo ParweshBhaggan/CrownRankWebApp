@@ -34,11 +34,12 @@ public sealed record BoostCheckoutRequest(Guid ReferenceId, Guid EntryId, decima
 public sealed record CheckoutResponse(Guid Id, string? Url, string Status);
 public sealed record PaymentResponse(Guid Id, string Status, bool Fulfilled, Guid? EntryId, decimal Amount, string Currency);
 public sealed record VerifiedCheckout(string SessionId, Guid OperationId, long AmountMinor, string Currency,
-    string Status, bool Paid, string? PaymentIntentId, DateTime? PaidAt, string? Url, bool LiveMode);
+    string Status, bool Paid, string? PaymentIntentId, DateTime? PaidAt, string? Url, bool LiveMode, bool Failed = false);
 
 public interface IPaymentGateway
 {
     Task<VerifiedCheckout> CreateAsync(PaymentOperation operation, CancellationToken ct);
+    Task<VerifiedCheckout?> FindAsync(PaymentOperation operation, CancellationToken ct);
     Task<VerifiedCheckout> RetrieveAsync(string sessionId, CancellationToken ct);
     VerifiedCheckout? VerifyWebhook(string payload, string signature);
 }
@@ -49,6 +50,7 @@ public interface IPaymentStore
     Task<PaymentOperation> ReserveAsync(PaymentOperation operation, EntryCheckoutRequest? entry, CancellationToken ct);
     Task AttachSessionAsync(Guid id, VerifiedCheckout checkout, CancellationToken ct);
     Task ApplyAsync(VerifiedCheckout checkout, CancellationToken ct);
+    Task ExpireUncreatedAsync(Guid id, CancellationToken ct);
     Task<List<PaymentOperation>> GetPendingAsync(CancellationToken ct);
 }
 

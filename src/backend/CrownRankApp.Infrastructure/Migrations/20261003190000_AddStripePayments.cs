@@ -28,6 +28,7 @@ public partial class AddStripePayments : Migration
                     CheckoutUrl = table.Column<string>(type: "text", nullable: true),
                     PaymentIntentId = table.Column<string>(type: "text", nullable: true),
                     ExpiresAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    LastCheckedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
                     PaidAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
                     FulfilledAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
                     AgreementsAcceptedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),

@@ -1,6 +1,6 @@
 using CrownRankApp.Application.Payments;
 using CrownRankApp.Infrastructure.Payments;
-using Stripe;
+using StripeClient = Stripe.StripeClient;
 using CrownRankApp.Application.Services.Category;
 using CrownRankApp.Application.Services.Entry;
 using CrownRankApp.Application.Services.SocialMedia;

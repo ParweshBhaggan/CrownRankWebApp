@@ -14,7 +14,7 @@ namespace CrownRankApp.API
 
             // Add services to the container.
 
-            builder.Services.AddControllers();
+            builder.Services.AddControllers(options => options.Filters.Add<AdminApiKeyFilter>());
             builder.Services.AddCors(options => options.AddPolicy("Frontend", policy => policy
                 .WithOrigins(builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
                     ?? ["http://localhost:5173", "https://localhost:5173"])

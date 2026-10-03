@@ -28,3 +28,8 @@ uploads/
 /.vs/CrownRank.slnx/FileContentIndex
 /.vs/CrownRank.slnx/v18
 /.vs/CrownRank.slnx/config
+
+
+# Generated profile assets and local payment credentials
+**/wwwroot/assets/profiles/
+**/appsettings.Local.json

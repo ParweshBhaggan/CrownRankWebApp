@@ -7,7 +7,7 @@ namespace CrownRankApp.API.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    public class EntryController(IEntryServices service, IConfiguration configuration) : ControllerBase
+    public class EntryController(IEntryServices service) : ControllerBase
     {
         [HttpGet]
         [EndpointSummary("Get all entries")]
@@ -53,10 +53,9 @@ namespace CrownRankApp.API.Controllers
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<ActionResult> DeleteEntry(Guid id)
         {
-            var key = configuration["Admin:ApiKey"];
-            if (string.IsNullOrWhiteSpace(key) || Request.Headers["X-Admin-Key"].ToString() != key)
-                return Unauthorized();
-            var deleted = await service.DeleteAsync(id);
+            bool deleted;
+            try { deleted = await service.DeleteAsync(id); }
+            catch (InvalidOperationException exception) { return Conflict(new { error = exception.Message }); }
 
             if (!deleted)
             {

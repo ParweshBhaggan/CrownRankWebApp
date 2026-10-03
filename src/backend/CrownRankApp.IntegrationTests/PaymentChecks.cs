@@ -5,7 +5,7 @@ using CrownRankApp.Infrastructure.Data;
 using CrownRankApp.Infrastructure.Payments;
 using CrownRankApp.Infrastructure.Services.Entry;
 using Microsoft.EntityFrameworkCore;
-using Stripe;
+using StripeClient = Stripe.StripeClient;
 
 static class PaymentChecks
 {
@@ -117,6 +117,7 @@ static class PaymentChecks
             });
             return Task.FromResult(session);
         }
+        public Task<VerifiedCheckout?> FindAsync(PaymentOperation operation, CancellationToken ct) => Task.FromResult(sessions.GetValueOrDefault(operation.Id));
         public Task<VerifiedCheckout> RetrieveAsync(string sessionId, CancellationToken ct) => Task.FromResult(sessions.Values.Single(session => session.SessionId == sessionId));
         public VerifiedCheckout? VerifyWebhook(string payload, string signature) => sessions[Guid.Parse(payload)];
         public void Pay(Guid id) => sessions[id] = sessions[id] with { Paid = true, Status = "complete", PaymentIntentId = $"pi_{id:N}", PaidAt = clock.GetUtcNow().UtcDateTime, Url = null };

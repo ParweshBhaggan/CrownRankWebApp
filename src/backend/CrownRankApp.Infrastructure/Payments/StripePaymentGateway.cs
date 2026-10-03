@@ -54,6 +54,29 @@ public sealed class StripePaymentGateway(StripeClient client, StripeSettings set
         }
     }
 
+    public async Task<VerifiedCheckout?> FindAsync(PaymentOperation operation, CancellationToken ct)
+    {
+        try
+        {
+            var options = new SessionListOptions
+            {
+                Created = new DateRangeOptions
+                {
+                    GreaterThanOrEqual = operation.CreatedDate.AddMinutes(-1), LessThanOrEqual = operation.ExpiresAt
+                },
+                Limit = 100
+            };
+            await foreach (var session in client.V1.Checkout.Sessions.ListAutoPagingAsync(options, cancellationToken: ct))
+                if (session.ClientReferenceId == operation.Id.ToString())
+                    return await RetrieveAsync(session.Id, ct);
+            return null;
+        }
+        catch (StripeException exception)
+        {
+            throw new PaymentUnavailableException("Checkout recovery is temporarily unavailable.", exception);
+        }
+    }
+
     public async Task<VerifiedCheckout> RetrieveAsync(string sessionId, CancellationToken ct)
     {
         try
@@ -93,6 +116,6 @@ public sealed class StripePaymentGateway(StripeClient client, StripeSettings set
         return new(session.Id, operationId, session.AmountTotal ?? -1, session.Currency, session.Status,
             session.PaymentStatus == "paid", session.PaymentIntentId,
             session.PaymentStatus == "paid" ? session.PaymentIntent?.LatestCharge?.Created : null,
-            session.Url, session.Livemode);
+            session.Url, session.Livemode, session.Status == "complete" && session.PaymentIntent?.Status is "canceled" or "requires_payment_method");
     }
 }
