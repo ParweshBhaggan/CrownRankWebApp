@@ -1,12 +1,15 @@
 import { expect, test } from '@playwright/test'
 
-test('visitor submits the new entry contract and browses backend categories', async ({ page }) => {
+test('visitor enters, boosts, browses categories, and views daily scores', async ({ page }) => {
   const entries = [{
     id: 'entry-1', name: 'Ada Lovelace', username: 'ada', score: 10,
     imgUrl: '/favicon.svg', createdDate: '2026-09-30T10:00:00Z',
     categories: [{ name: 'Technology' }, { name: 'Science' }],
     socialMediaPlatforms: [{ platformName: 'Instagram', url: 'https://instagram.com/ada' }],
   }]
+  const today = new Date().toISOString().slice(0, 10)
+  const dailyScores = new Map([['entry-1', 5]])
+  const boosts = new Set<string>()
   let submitted: Record<string, unknown> | undefined
   await page.route(/^https?:\/\/[^/]+\/api\//, async route => {
     const request = route.request()
@@ -17,10 +20,24 @@ test('visitor submits the new entry contract and browses backend categories', as
     if (path === '/api/SocialMediaDefault') return route.fulfill({ json: [
       { id: 'instagram-id', name: 'Instagram' }, { id: 'facebook-id', name: 'Facebook' },
     ] })
-    if (path === '/api/Entry' && request.method() === 'GET') return route.fulfill({ json: entries })
+    if (path === '/api/Entry/daily') return route.fulfill({ json: entries
+      .filter(entry => dailyScores.has(entry.id)).map(entry => ({ entry, dailyScore: dailyScores.get(entry.id), scoreReachedDate: `${today}T10:00:00Z` }))
+      .sort((a, b) => b.dailyScore! - a.dailyScore!) })
+    if (path.endsWith('/boost') && request.method() === 'POST') {
+      const payload = request.postDataJSON()
+      const entry = entries.find(item => item.id === path.split('/')[3])!
+      if (!boosts.has(payload.referenceId)) {
+        boosts.add(payload.referenceId)
+        entry.score += payload.amount
+        dailyScores.set(entry.id, (dailyScores.get(entry.id) ?? 0) + payload.amount)
+      }
+      return route.fulfill({ json: entry })
+    }
+    if (path === '/api/Entry' && request.method() === 'GET') return route.fulfill({ json: [...entries].sort((a,b) => b.score - a.score) })
     if (path === '/api/Entry' && request.method() === 'POST') {
       submitted = request.postDataJSON()
       entries.push({ ...submitted, id: 'entry-2', createdDate: '2026-09-30T11:00:00Z' } as typeof entries[number])
+      dailyScores.set('entry-2', submitted!.score as number)
       return route.fulfill({ status: 201, json: entries.at(-1) })
     }
     throw new Error(`Unexpected API request: ${request.method()} ${path}`)
@@ -46,8 +63,11 @@ test('visitor submits the new entry contract and browses backend categories', as
   await page.getByRole('button', { name: 'Back to leaderboard' }).click()
   await expect(page.getByText('Grace Hopper').first()).toBeVisible()
   await page.getByRole('button', { name: /Boost/ }).first().click()
-  await expect(page.getByRole('button', { name: /Boost unavailable/ })).toBeDisabled()
-  await page.getByRole('button', { name: 'Close', exact: true }).click()
+  await page.getByLabel('Boost amount').fill('2.50')
+  await page.getByRole('button', { name: /Confirm boost/ }).click()
+  await expect(page.getByRole('heading', { name: 'Boost confirmed' })).toBeVisible()
+  await page.getByRole('button', { name: 'Done', exact: true }).click()
+  await expect(page.getByText('€15.00').first()).toBeVisible()
   await page.getByRole('link', { name: 'Categories', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Science', exact: true })).toBeVisible()
   await page.getByRole('link', { name: /Science/ }).click()
@@ -56,5 +76,9 @@ test('visitor submits the new entry contract and browses backend categories', as
   await expect(page.getByText('Grace Hopper')).toBeVisible()
   await expect(page.getByText('Ada Lovelace')).toBeVisible()
   await page.getByRole('link', { name: 'Daily rank', exact: true }).click()
-  await expect(page.getByRole('alert')).toContainText('Daily rankings are not available')
+  await expect(page).toHaveURL(/\/daily$/)
+  await expect(page.getByRole('heading', { name: 'Today’s ranking' })).toBeVisible()
+  await expect(page.getByText('€15.00', { exact: true })).toBeVisible()
+  await expect(page.getByText('€5.00', { exact: true })).toBeVisible()
+  await expect(page.getByText('€10.00', { exact: true })).toHaveCount(0)
 })

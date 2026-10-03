@@ -1,4 +1,4 @@
-﻿using CrownRankApp.Application.Services.Category;
+using CrownRankApp.Application.Services.Category;
 using CrownRankApp.Application.Services.Entry;
 using CrownRankApp.Application.Services.SocialMedia;
 using CrownRankApp.Infrastructure.Data;
@@ -16,6 +16,7 @@ namespace CrownRankApp.Infrastructure
 
         public static IServiceCollection AddInfrastructure(this IServiceCollection services) 
         {
+            services.AddSingleton(TimeProvider.System);
             services.AddScoped<ICategoryService, CategoryServices>();
             services.AddScoped<ISocialMediaPlatformServices, SocialMediaPlatformServices>();
             services.AddScoped<ISocialMediaDefaultService, SocialMediaDefaultServices>();

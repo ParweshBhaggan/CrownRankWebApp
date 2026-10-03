@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CrownRankApp.Infrastructure.Services.Entry
 {
-    public class EntryServices(ApplicationDbContext context) : IEntryServices
+    public class EntryServices(ApplicationDbContext context, TimeProvider clock) : IEntryServices
     {
         private IQueryable<Domain.Models.Entry> EntriesWithProfiles() => context.Entries
             .AsNoTracking().AsSplitQuery()
@@ -14,7 +14,7 @@ namespace CrownRankApp.Infrastructure.Services.Entry
             .Include(entry => entry.SocialMediaPlatforms).ThenInclude(link => link.Platform);
 
         public Task<List<Domain.Models.Entry>> GetAllAsync() => EntriesWithProfiles()
-            .OrderByDescending(entry => entry.Score).ThenBy(entry => entry.CreatedDate).ThenBy(entry => entry.Id)
+            .OrderByDescending(entry => entry.Score).ThenBy(entry => entry.UpdatedDate ?? entry.CreatedDate).ThenBy(entry => entry.Id)
             .ToListAsync();
 
         public Task<Domain.Models.Entry?> GetByIdAsync(Guid id) => EntriesWithProfiles()
@@ -51,7 +51,8 @@ namespace CrownRankApp.Infrastructure.Services.Entry
 
             var entry = new Domain.Models.Entry
             {
-                Name = name, Username = username, ImgUrl = dto.ImgUrl, Score = dto.Score, Categories = categories
+                Name = name, Username = username, ImgUrl = dto.ImgUrl, Score = dto.Score, Categories = categories,
+                CreatedDate = clock.GetUtcNow().UtcDateTime
             };
             foreach (var link in dto.SocialMediaPlatforms)
             {
@@ -65,8 +66,85 @@ namespace CrownRankApp.Infrastructure.Services.Entry
             }
             // Save the entry and all links together; the entry FK exists before links are inserted.
             context.Entries.Add(entry);
+            context.ScoreAdditions.Add(new ScoreAddition
+            {
+                Entry = entry, Amount = entry.Score, CreatedDate = entry.CreatedDate
+            });
             await context.SaveChangesAsync();
             return entry;
+        }
+
+        public async Task<Domain.Models.Entry?> BoostScoreAsync(Guid id, decimal amount, Guid? referenceId = null)
+        {
+            if (amount <= 0 || amount > 10000 || decimal.Round(amount, 2) != amount)
+                throw new ArgumentException("Boost amount must be positive, at most 10000, and have at most two decimal places.");
+            if (referenceId == Guid.Empty) throw new ArgumentException("Boost reference cannot be empty.");
+            var additionId = referenceId ?? Guid.NewGuid();
+            var existing = await context.ScoreAdditions.AsNoTracking().FirstOrDefaultAsync(addition => addition.Id == additionId);
+            if (existing != null)
+            {
+                ValidateRetry(existing, id, amount);
+                return await GetByIdAsync(id);
+            }
+
+            await using var transaction = await context.Database.BeginTransactionAsync();
+            // Increment in SQL, so concurrent boosts cannot overwrite one another.
+            const decimal maxScore = 9999999999999999.99m; // numeric(18,2)
+            var changed = await context.Entries.Where(entry => entry.Id == id && entry.Score <= maxScore - amount)
+                .ExecuteUpdateAsync(setters => setters.SetProperty(entry => entry.Score, entry => entry.Score + amount));
+            if (changed == 0)
+            {
+                if (await context.Entries.AnyAsync(entry => entry.Id == id))
+                    throw new ArgumentException("This boost would exceed the maximum supported score.");
+                return null;
+            }
+            // Take the timestamp after acquiring the row lock, keeping concurrent tie dates in order.
+            var now = clock.GetUtcNow().UtcDateTime;
+            await context.Entries.Where(entry => entry.Id == id)
+                .ExecuteUpdateAsync(setters => setters.SetProperty(entry => entry.UpdatedDate, now));
+            context.ScoreAdditions.Add(new ScoreAddition(additionId)
+            {
+                EntryId = id, Amount = amount, CreatedDate = now
+            });
+            try
+            {
+                await context.SaveChangesAsync();
+                await transaction.CommitAsync();
+            }
+            catch (DbUpdateException)
+            {
+                // A concurrent retry may have saved this reference first; undo our increment.
+                await transaction.RollbackAsync();
+                context.ChangeTracker.Clear();
+                existing = await context.ScoreAdditions.AsNoTracking().FirstOrDefaultAsync(addition => addition.Id == additionId);
+                if (existing == null) throw;
+                ValidateRetry(existing, id, amount);
+            }
+            return await GetByIdAsync(id);
+        }
+
+        private static void ValidateRetry(ScoreAddition addition, Guid id, decimal amount)
+        {
+            if (addition.EntryId != id || addition.Amount != amount)
+                throw new InvalidOperationException("This boost reference was already used with different details.");
+        }
+
+        public async Task<List<DailyEntryResponseDto>> GetDailyAsync(DateOnly date)
+        {
+            var start = date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+            var end = start.AddDays(1);
+            var scores = await context.ScoreAdditions.AsNoTracking()
+                .Where(addition => addition.CreatedDate >= start && addition.CreatedDate < end)
+                .GroupBy(addition => addition.EntryId)
+                .Select(group => new { EntryId = group.Key, Score = group.Sum(addition => addition.Amount), ReachedDate = group.Max(addition => addition.CreatedDate) })
+                .OrderByDescending(row => row.Score).ThenBy(row => row.ReachedDate).ThenBy(row => row.EntryId)
+                .ToListAsync();
+            var ids = scores.Select(row => row.EntryId).ToList();
+            var entries = await EntriesWithProfiles().Where(entry => ids.Contains(entry.Id)).ToDictionaryAsync(entry => entry.Id);
+            return scores.Where(row => entries.ContainsKey(row.EntryId)).Select(row => new DailyEntryResponseDto
+            {
+                Entry = EntryResponseDto.FromEntry(entries[row.EntryId]), DailyScore = row.Score, ScoreReachedDate = row.ReachedDate
+            }).ToList();
         }
 
         public async Task<bool> DeleteAsync(Guid id)

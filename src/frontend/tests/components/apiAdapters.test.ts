@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { apiRequest, resolveApiAsset } from '../../src/shared/api/httpClient'
 import { createEntry } from '../../src/features/creator-entry/data/createEntry'
 import { ApiLeaderboardRepository } from '../../src/features/leaderboard/data/ApiLeaderboardRepository'
-import { MockPaymentGateway } from '../../src/features/payments/data/MockPaymentGateway'
+import { ScoreBoostGateway } from '../../src/features/payments/data/ScoreBoostGateway'
 import type { RankingEntryDraft } from '../../src/features/creator-entry/domain/rankingEntry'
 
 vi.mock('../../src/features/creator-entry/data/profileImage', () => ({ profileImageDataUrl: vi.fn(async () => 'data:image/webp;base64,test') }))
@@ -56,10 +56,10 @@ describe('frontend API adapters', () => {
     })
   })
 
-  it('maps entries including multiple categories and sorts by score', async () => {
+  it('maps entries including multiple categories and preserves backend ranking order', async () => {
     globalThis.fetch = async input => String(input) === '/api/Category'
       ? Response.json([{ id: 'technology-id', name: 'Technology' }, { id: 'science-id', name: 'Science' }])
-      : Response.json([10, 12.5].map((score, index) => ({
+      : Response.json([12.5, 10].map((score, index) => ({
           id: `entry-${index}`, name: 'Ada Lovelace', username: `ada${index}`, score,
           imgUrl: 'data:image/webp;base64,test', createdDate: '2026-09-30T10:00:00Z',
           categories: [{ name: 'Technology' }, { name: 'Science' }],
@@ -69,13 +69,32 @@ describe('frontend API adapters', () => {
     const entries = await repository.getAll()
     expect(entries.map(entry => entry.totalContributed)).toEqual([12.5, 10])
     expect(entries[0]).toMatchObject({ category: 'technology-id', categories: ['technology-id', 'science-id'], socialProfiles: [{ platform: 'Instagram' }], imageUrl: 'data:image/webp;base64,test' })
-    await expect(repository.getDaily('2026-09-30')).rejects.toThrow('Daily rankings are not available')
     expect(resolveApiAsset('https://cdn.example/avatar.webp')).toBe('https://cdn.example/avatar.webp')
   })
 
-  it('does not call retired payment endpoints for an unavailable boost', async () => {
-    globalThis.fetch = vi.fn()
-    await expect(new MockPaymentGateway().createCheckout({ referenceId: 'ref', creatorId: 'entry', purpose: 'creator-boost', amount: 2.5, currency: 'EUR' })).rejects.toThrow('Boosting is not available')
-    expect(globalThis.fetch).not.toHaveBeenCalled()
+  it('maps daily scores separately from global totals and preserves date tie order', async () => {
+    const paths: string[] = []
+    globalThis.fetch = async input => {
+      paths.push(String(input))
+      if (String(input) === '/api/Category') return Response.json([])
+      return Response.json([2, 1].map(id => ({
+        entry: { id: String(id), name: 'Creator', username: 'creator', score: 100,
+          imgUrl: '/avatar.png', createdDate: '2026-01-01T00:00:00Z', categories: [], socialMediaPlatforms: [] },
+        dailyScore: 2.5, scoreReachedDate: '2026-09-30T12:00:00Z',
+      })))
+    }
+    const daily = await new ApiLeaderboardRepository().getDaily('2026-09-30')
+    expect(paths).toContain('/api/Entry/daily?date=2026-09-30')
+    expect(daily.map(entry => entry.id)).toEqual(['2', '1'])
+    expect(daily[0]).toMatchObject({ totalContributed: 2.5, dailyContributed: 2.5, scoreReachedAt: '2026-09-30T12:00:00Z' })
+  })
+
+  it('boosts the selected entry with a decimal amount and a stable retry reference', async () => {
+    globalThis.fetch = vi.fn(async () => Response.json({ score: 12.5 }))
+    const request = { referenceId: 'ref', creatorId: 'entry', purpose: 'creator-boost', amount: 2.5, currency: 'EUR' } as const
+    await expect(new ScoreBoostGateway().createCheckout(request)).resolves.toEqual({ id: 'ref', confirmed: true })
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/Entry/entry/boost', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ amount: 2.5, referenceId: 'ref' }),
+    })
   })
 })

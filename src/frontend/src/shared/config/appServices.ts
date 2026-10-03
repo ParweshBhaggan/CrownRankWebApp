@@ -1,4 +1,4 @@
 import { ApiLeaderboardRepository } from '../../features/leaderboard/data/ApiLeaderboardRepository'
-import { MockPaymentGateway } from '../../features/payments/data/MockPaymentGateway'
+import { ScoreBoostGateway } from '../../features/payments/data/ScoreBoostGateway'
 
-export const appServices = { leaderboardRepository: new ApiLeaderboardRepository(), paymentGateway: new MockPaymentGateway() } as const
+export const appServices = { leaderboardRepository: new ApiLeaderboardRepository(), paymentGateway: new ScoreBoostGateway() } as const

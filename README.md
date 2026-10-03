@@ -30,7 +30,10 @@ Vite proxies `/api` to `http://localhost:5169`. For a direct API connection, set
 - Entry submission sends JSON to `/api/Entry`. An opening amount of €12.50 becomes `score: 12.5`; no payment provider is called or money charged.
 - The entry, selected existing categories, and social links are saved together. Invalid selections return a validation error; existing usernames return a conflict.
 - The board loads all entries, orders them by score descending, and refreshes after submission. An entry belonging to several categories appears in each category.
-- Boosts and daily rankings are unavailable because this backend has no boost endpoint or daily contribution history. Their UI explains this without calling retired endpoints.
+- Boosts call `POST /api/Entry/{id}/boost` and add a positive decimal amount to the current score. No payment is processed. Zero, negative amounts, fractional cents, and amounts above 10000 are rejected. The UI retains its existing €1 minimum.
+- Global rankings sort by score descending, then `UpdatedDate ?? CreatedDate` ascending, then ID. Equal scores therefore prefer the entry that reached its score first. The frontend preserves this order.
+- Daily rankings call `GET /api/Entry/daily?date=YYYY-MM-DD` and sum opening scores plus boosts added during that UTC calendar day. Equal daily scores prefer the earlier last addition timestamp, then entry ID. Global scores never reset.
+- Each addition is stored in one small `ScoreAdditions` table. Boosts increment the total in SQL and save history in the same transaction, protecting against concurrent lost updates. The frontend sends a stable `referenceId` so retries do not credit the same boost twice.
 
 ## API contract used by the frontend
 
@@ -40,6 +43,8 @@ Vite proxies `/api` to `http://localhost:5169`. For a direct API connection, set
 | GET | `/api/SocialMediaDefault` | All social platform IDs and names |
 | GET | `/api/Entry` | Entries with decimal scores, categories, social profiles, and dates |
 | POST | `/api/Entry` | Save an entry directly |
+| POST | `/api/Entry/{id}/boost` | Add a positive amount to the score |
+| GET | `/api/Entry/daily?date=YYYY-MM-DD` | UTC daily score ranking; defaults to today |
 
 Example submission:
 
@@ -56,12 +61,17 @@ Example submission:
 
 The current API accepts `imgUrl`, not a multipart upload. The frontend resizes uploaded images to fit within 300×250, preserves their aspect ratio, and stores the resulting WebP data URL in `imgUrl`. A dedicated server asset upload service remains future work. Frontend image inputs accept JPG, PNG, and WebP up to 5 MB.
 
-Entry API responses use DTOs to avoid serializing circular EF navigation properties. No database model changes are introduced by this integration, so no new migration is needed beyond applying the repository's existing migrations.
+Entry API responses use DTOs to avoid serializing circular EF navigation properties. Apply the new `AddScoreAdditions` migration with the `dotnet ef database update` command above before starting this version. Existing entry totals remain unchanged. Daily history starts with additions recorded after this migration; older entries appear in daily rankings when boosted, and their pre-migration opening totals are not invented as historical additions.
+
+Boost body example: `{ "amount": 2.5, "referenceId": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa" }`. The reference is optional for direct API use. Reusing a reference with different details returns HTTP 409. Missing entries return 404; invalid amounts return 400. Daily responses contain `entry` (including its global score), `dailyScore`, and `scoreReachedDate`.
 
 ## Checks
 
 ```bash
 dotnet build src/backend/CrownRankApp.slnx
+# Set CROWNRANK_TEST_CONNECTION to a PostgreSQL connection with CREATE DATABASE permission.
+# The integration checks create and remove their own disposable database.
+dotnet run --project src/backend/CrownRankApp.IntegrationTests
 cd src/frontend
 npm test
 npm run lint
@@ -70,4 +80,6 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-Browser tests intercept API responses and verify registration, decimal score submission, backend lookup options, category filtering, refresh, and unavailable feature states. They do not replace an end-to-end check against PostgreSQL.
+CI runs PostgreSQL integration checks for migrations, opening additions, positive-only boost validation, decimal accuracy, global and daily tie ordering, historical isolation, UTC midnight boundaries, concurrent boosts, and sequential/concurrent retry deduplication. The checks create a separate disposable database and never modify the database named in the supplied connection string.
+
+Browser tests intercept API responses and verify registration, direct boost submission, leaderboard refresh, category filtering, and daily scores that differ from global totals.

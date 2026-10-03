@@ -1,4 +1,4 @@
-﻿using CrownRankApp.Domain.Models;
+using CrownRankApp.Domain.Models;
 using CrownRankApp.Infrastructure.Data.Seeders;
 using Microsoft.EntityFrameworkCore;
 
@@ -6,6 +6,7 @@ namespace CrownRankApp.Infrastructure.Data
 {
     public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : DbContext(options)
     {
+        public DbSet<ScoreAddition> ScoreAdditions { get; set; }
         public DbSet<Entry> Entries { get; set; }
         public DbSet<Category> Categories { get; set; }
         public DbSet<SocialMediaDefault> SocialMediaDefaults { get; set; }
@@ -47,6 +48,12 @@ namespace CrownRankApp.Infrastructure.Data
             modelBuilder.Entity<SocialMediaDefault>()
                 .HasIndex(x => x.Name)
                 .IsUnique();
+
+            modelBuilder.Entity<ScoreAddition>()
+                .HasOne(addition => addition.Entry).WithMany()
+                .HasForeignKey(addition => addition.EntryId).OnDelete(DeleteBehavior.Cascade);
+            modelBuilder.Entity<ScoreAddition>().Property(addition => addition.Amount).HasPrecision(18, 2);
+            modelBuilder.Entity<ScoreAddition>().HasIndex(addition => new { addition.CreatedDate, addition.EntryId });
 
             CategorySeeder.Seed(modelBuilder);
             SocialMediaSeeder.Seed(modelBuilder);

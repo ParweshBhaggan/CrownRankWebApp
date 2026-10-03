@@ -19,7 +19,7 @@ describe('BoostDialog', () => {
 
     await user.clear(screen.getByLabelText('Boost amount'))
     await user.type(screen.getByLabelText('Boost amount'), '2.50')
-    await user.click(screen.getByRole('button', { name: /confirm mock payment/i }))
+    await user.click(screen.getByRole('button', { name: /confirm boost/i }))
 
     await waitFor(() => expect(createCheckout).toHaveBeenCalledOnce())
     expect(createCheckout).toHaveBeenCalledWith(expect.objectContaining({
@@ -36,7 +36,7 @@ describe('BoostDialog', () => {
     const user = userEvent.setup()
     render(<BoostDialog creator={creator} gateway={{ createCheckout }} onClose={vi.fn()} onConfirmed={vi.fn()} />)
 
-    await user.click(screen.getByRole('button', { name: /confirm mock payment/i }))
+    await user.click(screen.getByRole('button', { name: /confirm boost/i }))
     expect(await screen.findByRole('alert')).toHaveTextContent(/not confirmed/i)
     await user.click(screen.getByRole('button', { name: /retry/i }))
 
