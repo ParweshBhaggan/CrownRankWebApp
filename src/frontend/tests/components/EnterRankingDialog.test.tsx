@@ -1,3 +1,4 @@
+import { ApiError } from "../../src/shared/api/httpClient"
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -83,5 +84,26 @@ describe('EnterRankingDialog', () => {
     await waitFor(() => expect(createEntry).toHaveBeenCalledTimes(2))
     expect(vi.mocked(createEntry).mock.calls[0][1]).toBe(vi.mocked(createEntry).mock.calls[1][1])
   })
+  it('allows correcting a rejected submission with a new reference', async () => {
+    vi.mocked(createEntry).mockRejectedValueOnce(new ApiError('Username is taken', 409)).mockResolvedValueOnce(undefined)
+    const user = userEvent.setup()
+    render(<LookupProvider><EnterRankingDialog isOpen onClose={vi.fn()} onConfirmed={vi.fn()} /></LookupProvider>)
+    await user.type(screen.getByLabelText('Name'), 'Ada Lovelace')
+    await user.type(screen.getByLabelText('Creator username'), 'ada')
+    await user.selectOptions(screen.getByLabelText('Creator category'), 'category-technology')
+    await user.selectOptions(screen.getByLabelText('Platform 1'), 'Instagram')
+    await user.type(screen.getByLabelText('Social profile URL 1'), 'https://instagram.com/ada')
+    await user.click(screen.getByRole('checkbox'))
+    await user.upload(screen.getByLabelText('Profile image'), new File(['image'], 'profile.png', { type: 'image/png' }))
+    await user.click(screen.getByRole('button', { name: /continue to payment/i }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Username is taken')
+    expect(screen.getByLabelText('Creator username')).not.toBeDisabled()
+    await user.clear(screen.getByLabelText('Creator username'))
+    await user.type(screen.getByLabelText('Creator username'), 'ada_new')
+    await user.click(screen.getByRole('button', { name: /continue to payment/i }))
+    await waitFor(() => expect(createEntry).toHaveBeenCalledTimes(2))
+    expect(vi.mocked(createEntry).mock.calls[0][1]).not.toBe(vi.mocked(createEntry).mock.calls[1][1])
+  })
+
 })
 

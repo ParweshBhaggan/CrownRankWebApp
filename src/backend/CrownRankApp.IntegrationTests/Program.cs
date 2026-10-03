@@ -127,6 +127,7 @@ try
         Check(!await context.ScoreAdditions.AnyAsync(row => row.EntryId == boundary), "Deleting an entry cascades its score additions");
     }
     await PaymentChecks.Run(options, clock);
+    await ApiChecks.Run(options);
     Console.WriteLine("All PostgreSQL integration checks passed.");
 }
 finally

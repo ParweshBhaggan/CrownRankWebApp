@@ -1,3 +1,4 @@
+import { ApiError } from "../../../shared/api/httpClient"
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 import { type CreatorCategory, type SocialPlatform } from '../../leaderboard/domain/creator'
 import { useLookups } from '../../../shared/config/useLookups'
@@ -82,6 +83,10 @@ export function EnterRankingDialog({ isOpen, onClose }: Props)
       await createEntry({ name, username, category, socialLinks, profileImage, contribution, acceptedAgreements: acceptedTerms }, entryReference.current)
       setCheckoutReady(true)
     } catch (error) {
+      if (error instanceof ApiError && (error.status === 400 || error.status === 409)) {
+        setFrozen(false)
+        entryReference.current = crypto.randomUUID()
+      }
       setSubmitError(error instanceof Error ? error.message : 'Could not submit your entry. Please retry.')
     } finally {
       submitting.current = false

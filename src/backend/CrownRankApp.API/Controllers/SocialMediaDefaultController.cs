@@ -68,7 +68,9 @@ namespace CrownRankApp.API.Controllers
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<ActionResult> DeleteSocialMediaDefault(Guid id)
         {
-            var deleted = await service.DeleteAsync(id);
+            bool deleted;
+            try { deleted = await service.DeleteAsync(id); }
+            catch (InvalidOperationException exception) { return Conflict(new { error = exception.Message }); }
             if (!deleted)
             {
                 return NotFound();
@@ -78,3 +80,4 @@ namespace CrownRankApp.API.Controllers
         }
     }
 }
+

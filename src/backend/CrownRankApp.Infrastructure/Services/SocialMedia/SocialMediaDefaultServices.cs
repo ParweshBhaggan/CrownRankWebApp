@@ -1,4 +1,4 @@
-﻿using CrownRankApp.Application.Dtos.SocialMedia;
+using CrownRankApp.Application.Dtos.SocialMedia;
 using CrownRankApp.Application.Services.SocialMedia;
 using CrownRankApp.Domain.Models;
 using CrownRankApp.Infrastructure.Data;
@@ -102,6 +102,15 @@ namespace CrownRankApp.Infrastructure.Services.SocialMedia
         }
         public async Task<bool> DeleteAsync(Guid id)
         {
+            await using var transaction = await context.Database.BeginTransactionAsync();
+            var locked = await context.SocialMediaDefaults.Where(row => row.Id == id)
+                .ExecuteUpdateAsync(setters => setters.SetProperty(row => row.Name, row => row.Name));
+            if (locked == 0) return false;
+            if (await context.PaymentOperations.AnyAsync(payment => payment.Purpose == CrownRankApp.Domain.Models.PaymentPurpose.Entry
+                && payment.FulfilledAt == null && payment.Status != CrownRankApp.Domain.Models.PaymentStatus.Expired
+                && payment.Status != CrownRankApp.Domain.Models.PaymentStatus.Failed))
+                throw new InvalidOperationException("Lookup deletion is unavailable while an entry payment is active.");
+
             var platform = await context.SocialMediaDefaults
             .FirstOrDefaultAsync(x => x.Id == id);
 
@@ -114,7 +123,9 @@ namespace CrownRankApp.Infrastructure.Services.SocialMedia
 
             await context.SaveChangesAsync();
 
+            await transaction.CommitAsync();
             return true;
         }
     }
 }
+

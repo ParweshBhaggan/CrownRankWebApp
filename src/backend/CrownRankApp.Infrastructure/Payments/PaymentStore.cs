@@ -18,9 +18,14 @@ public sealed class PaymentStore(ApplicationDbContext context, ProfileImageStora
         {
             if (await context.Entries.AnyAsync(existing => existing.Username.ToLower() == entry.Username, ct))
                 throw new InvalidOperationException("This username already has a ranked entry.");
-            if (!await context.Categories.AnyAsync(category => category.Id == entry.CategoryId, ct))
+            if (await context.Categories.Where(category => category.Id == entry.CategoryId)
+                .ExecuteUpdateAsync(setters => setters.SetProperty(category => category.Name, category => category.Name), ct) != 1)
                 throw new ArgumentException("The selected category is unavailable.");
             var platformIds = entry.SocialProfiles.Select(profile => profile.PlatformId).ToList();
+            foreach (var platformId in platformIds.Order())
+                if (await context.SocialMediaDefaults.Where(platform => platform.Id == platformId)
+                    .ExecuteUpdateAsync(setters => setters.SetProperty(platform => platform.Name, platform => platform.Name), ct) != 1)
+                    throw new ArgumentException("A selected social platform is unavailable.");
             var platforms = await context.SocialMediaDefaults.Where(platform => platformIds.Contains(platform.Id)).ToListAsync(ct);
             if (platforms.Count != platformIds.Count) throw new ArgumentException("A selected social platform is unavailable.");
             foreach (var profile in entry.SocialProfiles)
