@@ -31,6 +31,12 @@ test('entry and boost checkout update rankings only after confirmed payment', as
       .filter(entry => dailyScores.has(entry.id)).map(entry => ({ entry, dailyScore: dailyScores.get(entry.id), scoreReachedDate: `${today}T10:00:00Z` }))
       .sort((a, b) => b.dailyScore! - a.dailyScore!) })
     if (path === '/api/Entry' && request.method() === 'GET') return route.fulfill({ json: [...entries].sort((a,b) => b.score - a.score) })
+    if (path.startsWith('/api/profile-images/')) {
+      paymentId = path.split('/').at(-1)!
+      expect(request.headers()['content-type']).toContain('multipart/form-data; boundary=')
+      expect(request.postDataBuffer()?.includes(Buffer.from('PNG'))).toBe(true)
+      return route.fulfill({ json: { url: `/assets/profiles/${paymentId}.webp` } })
+    }
     if (path.startsWith('/api/payments/entry-checkout/')) {
       paymentId = path.split('/').at(-1)!
       expect(request.postDataJSON()).toEqual({ name: 'Grace Hopper', amount: 12.5 })
@@ -90,7 +96,7 @@ test('entry and boost checkout update rankings only after confirmed payment', as
   await page.getByRole('button', { name: 'Check again' }).click()
   await expect(page.getByRole('heading', { name: 'Payment confirmed' })).toBeVisible()
   expect(submitted).toMatchObject({ name: 'Grace Hopper', username: 'grace', categories: [{ name: 'Science', description: '' }], acceptedAgreements: true, socialMediaPlatforms: [{ platformName: 'Facebook', url: 'https://facebook.com/grace' }] })
-  expect(submitted?.imgUrl).toMatch(/^data:image\/webp;base64,/)
+  expect(submitted?.imgUrl).toBe(`/assets/profiles/${paymentId}.webp`)
   expect(submitted).not.toHaveProperty('amount')
   expect(submitted?.score).toBe(12.5)
   await page.getByRole('link', { name: 'View creator' }).click()

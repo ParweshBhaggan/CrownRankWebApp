@@ -26,6 +26,31 @@ public sealed class ProfileImageStorage(string root)
         {
             throw new ArgumentException("The image could not be decoded.");
         }
+        return await SaveBytesAsync(id, bytes, false, ct);
+    }
+
+    public async Task<string> UploadAsync(Guid id, byte[] bytes, CancellationToken ct)
+    {
+        return await SaveBytesAsync(id, bytes, true, ct);
+    }
+
+    public string ResolveUploaded(Guid id, string url)
+    {
+        var prefix = $"/assets/profiles/{id:N}-";
+        if (url is null || !url.StartsWith(prefix, StringComparison.Ordinal) || !url.EndsWith(".webp", StringComparison.Ordinal))
+        {
+            throw new ArgumentException("Upload a profile image for this entry before continuing.");
+        }
+        var hash = url[prefix.Length..^5];
+        if (hash.Length != 64 || !hash.All(Uri.IsHexDigit) || !File.Exists(Path.Combine(root, "assets", "profiles", Path.GetFileName(url))))
+        {
+            throw new ArgumentException("The uploaded profile image is unavailable. Please upload it again.");
+        }
+        return url;
+    }
+
+    private async Task<string> SaveBytesAsync(Guid id, byte[] bytes, bool uploaded, CancellationToken ct)
+    {
         if (bytes.Length > 5 * 1024 * 1024)
         {
             throw new ArgumentException("Choose an image up to 5 MB.");
@@ -33,11 +58,12 @@ public sealed class ProfileImageStorage(string root)
         try
         {
             using var stream = new MemoryStream(bytes);
-            var info = await Image.IdentifyAsync(stream, ct);
-            if (info.Metadata.DecodedImageFormat?.Name is not ("JPEG" or "PNG" or "WEBP"))
+            var format = Image.DetectFormat(bytes);
+            if (format.DefaultMimeType is not ("image/jpeg" or "image/png" or "image/webp"))
             {
                 throw new ArgumentException("The actual image format must be JPG, PNG, or WebP.");
             }
+            var info = await Image.IdentifyAsync(stream, ct);
             if (info.Width > 10000 || info.Height > 10000 || (long)info.Width * info.Height > 25_000_000)
             {
                 throw new ArgumentException("The image dimensions are too large.");
@@ -58,7 +84,10 @@ public sealed class ProfileImageStorage(string root)
             image.Metadata.XmpProfile = null;
             var folder = Path.Combine(root, "assets", "profiles");
             Directory.CreateDirectory(folder);
-            var path = Path.Combine(folder, $"{id:N}.webp");
+            var filename = uploaded
+            ? $"{id:N}-{Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes)).ToLowerInvariant()}.webp"
+            : $"{id:N}.webp";
+            var path = Path.Combine(folder, filename);
             // Each submission owns its image; retries never replace another submission's file.
             if (!File.Exists(path))
             {
@@ -85,7 +114,7 @@ public sealed class ProfileImageStorage(string root)
                     }
                 }
             }
-            return $"/assets/profiles/{id:N}.webp";
+            return $"/assets/profiles/{filename}";
         }
         catch (UnknownImageFormatException)
         {

@@ -53,8 +53,8 @@ static class PaymentChecks
             var platform = await lookup.SocialMediaDefaults.SingleAsync(platform => platform.Name == "Instagram");
             using var sourceImage = new Image<Rgba32>(600, 500);
             using var imageBytes = new MemoryStream();
-            sourceImage.SaveAsPng(imageBytes);
-            var png = "data:image/png;base64," + Convert.ToBase64String(imageBytes.ToArray());
+            sourceImage.SaveAsWebp(imageBytes);
+            var png = "data:image/webp;base64," + Convert.ToBase64String(imageBytes.ToArray());
             var referenceId = Guid.NewGuid();
             var request = new CheckoutRequest("Paid creator", 12.50m);
             var registration = new EntryRegistrationRequest(request.Name, "paid_creator", png, 99999m,

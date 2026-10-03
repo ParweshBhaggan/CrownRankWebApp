@@ -5,7 +5,6 @@ import { ApiLeaderboardRepository } from '../../src/features/leaderboard/data/Ap
 import { StripeCheckoutGateway } from '../../src/features/payments/data/StripeCheckoutGateway'
 import type { RankingEntryDraft } from '../../src/features/creator-entry/domain/rankingEntry'
 
-vi.mock('../../src/features/creator-entry/data/profileImage', () => ({ profileImageDataUrl: vi.fn(async () => 'data:image/webp;base64,test') }))
 
 vi.mock('../../src/shared/api/redirect', () => ({ redirectToUrl: vi.fn() }))
 import { getPendingEntry } from '../../src/features/creator-entry/data/pendingEntry'
@@ -43,6 +42,7 @@ describe('frontend API adapters', () => {
       requests.push({ url, init })
       if (url === '/api/Category') return Response.json([{ id: 'science-id', name: 'New science category' }])
       if (url === '/api/SocialMediaDefault') return Response.json([{ id: 'social-id', name: 'New platform' }])
+      if (url === '/api/profile-images/ui-reference') return Response.json({ url: '/assets/profiles/saved.webp' })
       return Response.json({ id: 'ui-reference', url: 'https://checkout.stripe.com/test', status: 'pending' })
     }
     const draft = {
@@ -51,15 +51,34 @@ describe('frontend API adapters', () => {
       profileImage: new File(['image'], 'profile.png', { type: 'image/png' }),
     } satisfies RankingEntryDraft
     await createEntry(draft, 'ui-reference')
-    expect(requests.map(request => request.url)).toEqual(['/api/Category', '/api/SocialMediaDefault', '/api/payments/entry-checkout/ui-reference'])
-    expect(requests[2].init?.headers).toEqual({ 'Content-Type': 'application/json' })
-    expect(JSON.parse(String(requests[2].init?.body))).toEqual({ name: 'Ada Lovelace', amount: 12.5 })
+    expect(requests.map(request => request.url)).toEqual(['/api/Category', '/api/SocialMediaDefault', '/api/profile-images/ui-reference', '/api/payments/entry-checkout/ui-reference'])
+    expect(requests[2].init?.body).toBeInstanceOf(FormData)
+    expect((requests[2].init?.body as FormData).get('file')).toBe(draft.profileImage)
+    expect(requests[2].init?.headers).toBeUndefined()
+    expect(requests[3].init?.headers).toEqual({ 'Content-Type': 'application/json' })
+    expect(JSON.parse(String(requests[3].init?.body))).toEqual({ name: 'Ada Lovelace', amount: 12.5 })
     expect(getPendingEntry('ui-reference')).toEqual({
-      name: 'Ada Lovelace', username: 'ada', imgUrl: 'data:image/webp;base64,test', score: 12.5,
+      name: 'Ada Lovelace', username: 'ada', imgUrl: '/assets/profiles/saved.webp', score: 12.5,
       categories: [{ name: 'New science category', description: '' }], acceptedAgreements: true,
       socialMediaPlatforms: [{ platformName: 'New platform', url: 'https://example.com/ada' }],
     })
     expect(redirectToUrl).toHaveBeenCalledWith('https://checkout.stripe.com/test')
+  })
+
+  it('rejects an invalid upload before creating a Stripe session', async () => {
+    const requests: string[] = []
+    globalThis.fetch = async input => {
+      const url = String(input)
+      requests.push(url)
+      if (url === '/api/Category') return Response.json([{ id: 'science', name: 'Science' }])
+      if (url === '/api/SocialMediaDefault') return Response.json([])
+      return Response.json({ detail: 'The uploaded image is invalid.' }, { status: 400 })
+    }
+    await expect(createEntry({ acceptedAgreements: true, name: 'Ada', username: 'ada', category: 'science',
+      contribution: 10, socialLinks: [], profileImage: new File(['invalid'], 'avatar.webp') }, 'reference'))
+      .rejects.toThrow('The uploaded image is invalid.')
+    expect(requests.some(url => url.includes('entry-checkout'))).toBe(false)
+    expect(getPendingEntry('reference')).toBeNull()
   })
 
   it('maps entries including multiple categories and preserves backend ranking order', async () => {

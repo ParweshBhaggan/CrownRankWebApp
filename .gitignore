@@ -33,3 +33,5 @@ uploads/
 # Generated profile assets and local payment credentials
 **/wwwroot/assets/profiles/
 **/appsettings.Local.json
+
+src/frontend/public/assets/profiles/

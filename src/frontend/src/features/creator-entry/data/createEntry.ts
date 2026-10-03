@@ -1,7 +1,7 @@
 import { startEntryCheckout } from '../../../shared/api/services/paymentApi'
 import { getCategories } from '../../../shared/api/services/categoryApi'
 import { getSocialMediaDefaults } from '../../../shared/api/services/socialMediaDefaultApi'
-import { profileImageDataUrl } from './profileImage'
+import { uploadProfileImage } from '../../../shared/api/services/profileImageApi'
 import type { RankingEntryDraft } from '../domain/rankingEntry'
 import { savePendingEntry } from './pendingEntry'
 import { continueToCheckout } from '../../payments/application'
@@ -21,7 +21,7 @@ export async function createEntry(draft: RankingEntryDraft, entryReference: stri
     name: draft.name.trim(), username: draft.username.trim(),
     categories: [{ name: selected.name, description: selected.description ?? '' }],
     socialMediaPlatforms: draft.socialLinks.map(link => ({ platformName: link.platform, url: link.url.trim() })),
-    score: draft.contribution, imgUrl: await profileImageDataUrl(draft.profileImage), acceptedAgreements: draft.acceptedAgreements,
+    score: draft.contribution, imgUrl: await uploadProfileImage(draft.profileImage, entryReference), acceptedAgreements: draft.acceptedAgreements,
   })
   const session = await startEntryCheckout(entryReference, { name: draft.name.trim(), amount: draft.contribution })
   continueToCheckout(session)

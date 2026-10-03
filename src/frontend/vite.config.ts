@@ -16,6 +16,11 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
       },
+      '/assets/profiles': {
+        target: 'http://localhost:5169',
+        changeOrigin: true,
+        secure: false,
+      },
       '/uploads': {
         target: 'http://localhost:5169',
         changeOrigin: true,
@@ -24,3 +29,4 @@ export default defineConfig({
     },
   },
 })
+

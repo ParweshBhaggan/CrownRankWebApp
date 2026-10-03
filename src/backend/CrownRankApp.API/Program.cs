@@ -1,5 +1,6 @@
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Extensions.FileProviders;
 
 using CrownRankApp.Infrastructure;
 using Scalar.AspNetCore;
@@ -23,8 +24,18 @@ namespace CrownRankApp.API
             builder.Services.AddOpenApi();
 
             builder.Services.AddInfrastructure();
-            builder.Services.AddPayments(builder.Configuration,
-                builder.Environment.WebRootPath ?? Path.Combine(builder.Environment.ContentRootPath, "wwwroot"));
+            var frontendPublic = Path.GetFullPath(Path.Combine(builder.Environment.ContentRootPath, "../../frontend/public"));
+            var imageRoot = builder.Configuration["ProfileImages:StoragePath"];
+            if (string.IsNullOrWhiteSpace(imageRoot))
+            {
+                imageRoot = builder.Environment.IsDevelopment() && Directory.Exists(frontendPublic)
+                ? frontendPublic
+                : Path.Combine(builder.Environment.ContentRootPath, "wwwroot");
+            }
+            imageRoot = Path.GetFullPath(imageRoot, builder.Environment.ContentRootPath);
+            var profileFolder = Path.Combine(imageRoot, "assets", "profiles");
+            Directory.CreateDirectory(profileFolder);
+            builder.Services.AddPayments(builder.Configuration, imageRoot);
             builder.Services.AddHostedService<PaymentRecoveryWorker>();
             builder.Services.AddProblemDetails();
             builder.Services.AddRateLimiter(options =>
@@ -52,9 +63,13 @@ namespace CrownRankApp.API
 
             app.UseExceptionHandler();
             app.UseHttpsRedirection();
-            app.UseStaticFiles();
-
             app.UseCors("Frontend");
+            app.UseStaticFiles();
+            app.UseStaticFiles(new StaticFileOptions
+                {
+                    FileProvider = new PhysicalFileProvider(profileFolder),
+                    RequestPath = "/assets/profiles"
+                });
             app.UseAuthorization();
             app.UseRateLimiter();
 

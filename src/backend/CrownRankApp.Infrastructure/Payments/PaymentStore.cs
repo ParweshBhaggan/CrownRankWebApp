@@ -116,8 +116,10 @@ public sealed class PaymentStore(ApplicationDbContext context, ProfileImageStora
                     ValidateSocialHost(platform.Name, profile.Url);
                     profiles.Add(new SocialProfileRequest(platform.Id, profile.Url));
                 }
-                var imageUrl = await images.SaveAsync(id, entry.ImgUrl, ct);
-                savedImage = true;
+                savedImage = entry.ImgUrl.StartsWith("data:", StringComparison.Ordinal);
+                var imageUrl = savedImage
+                ? await images.SaveAsync(id, entry.ImgUrl, ct)
+                : images.ResolveUploaded(id, entry.ImgUrl);
                 payment.EntryJson = JsonSerializer.Serialize(new StoredEntry(entry.Name, entry.Username, categories[0].Id, profiles, imageUrl, categories.Select(category => category.Id).ToList()));
                 payment.ReservedUsername = entry.Username;
                 payment.AgreementsAcceptedAt = clock.GetUtcNow().UtcDateTime;

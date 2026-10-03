@@ -83,7 +83,7 @@ export function EnterRankingDialog({ isOpen, onClose }: Props)
       await createEntry({ name, username, category, socialLinks, profileImage, contribution, acceptedAgreements: acceptedTerms }, entryReference.current)
       setCheckoutReady(true)
     } catch (error) {
-      if (error instanceof ApiError && (error.status === 400 || error.status === 409)) {
+      if (error instanceof ApiError && (error.status === 400 || error.status === 409 || error.status === 413 || error.status === 415)) {
         setFrozen(false)
         entryReference.current = crypto.randomUUID()
       }

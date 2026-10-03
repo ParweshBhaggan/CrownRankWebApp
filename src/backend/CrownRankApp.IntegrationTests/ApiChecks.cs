@@ -89,11 +89,51 @@ static class ApiChecks
         await using var context = new ApplicationDbContext(options);
         var category = await context.Categories.FirstAsync();
         var platform = await context.SocialMediaDefaults.FirstAsync(platform => platform.Name == "Instagram");
-        using var image = new Image<Rgba32>(1, 1);
-        using var imageBytes = new MemoryStream();
-        image.SaveAsPng(imageBytes);
+        using var image = new Image<Rgba32>(600, 500);
+        string? uploadedUrl = null;
+        foreach (var format in new[]
+        {
+            "jpeg",
+            "png",
+            "webp"
+        })
+        {
+            using var imageBytes = new MemoryStream();
+            switch (format)
+            {
+                    case "jpeg":
+                    image.SaveAsJpeg(imageBytes);
+                    break;
+                    case "png":
+                    image.SaveAsPng(imageBytes);
+                    break;
+                    default:
+                    image.SaveAsWebp(imageBytes);
+                    break;
+            }
+            using var body = new MultipartFormDataContent();
+            body.Add(new ByteArrayContent(imageBytes.ToArray()), "file", $"profile.{format}");
+            var upload = await client.PostAsync($"/api/profile-images/{paymentId}", body);
+            Check(upload.StatusCode == HttpStatusCode.OK, $"Real {format} image uploads without administrator credentials");
+            var result = await upload.Content.ReadFromJsonAsync<Dictionary<string, string>>();
+            uploadedUrl = result!["url"];
+            using var served = await client.GetAsync(uploadedUrl);
+            Check(served.StatusCode == HttpStatusCode.OK && served.Content.Headers.ContentType?.MediaType == "image/webp",
+                $"Uploaded {format} asset is publicly served as WebP");
+            var saved = Image.Identify(await served.Content.ReadAsByteArrayAsync());
+            Check(saved.Width == 300 && saved.Height == 250, $"Uploaded {format} image is resized correctly");
+            var frontendFile = Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), "../frontend/public", uploadedUrl.TrimStart('/')));
+            Check(File.Exists(frontendFile), $"Uploaded {format} image is saved inside frontend public assets");
+        }
+        using (var invalidBody = new MultipartFormDataContent())
+        {
+            invalidBody.Add(new ByteArrayContent("invalid image"u8.ToArray()), "file", "fake.webp");
+            var invalidUpload = await client.PostAsync($"/api/profile-images/{paymentId}", invalidBody);
+            Check(invalidUpload.StatusCode == HttpStatusCode.BadRequest && gateway.Created == 0,
+                "Invalid image fails before any checkout is created");
+        }
         var registration = new EntryRegistrationRequest("API paid creator", $"api_{paymentId:N}",
-            "data:image/png;base64," + Convert.ToBase64String(imageBytes.ToArray()), 99999m,
+            uploadedUrl!, 99999m,
             [new CategoryDto
             {
                 Name = category.Name
@@ -118,9 +158,16 @@ static class ApiChecks
             });
         var confirmed = await confirmedResponse.Content.ReadFromJsonAsync<PaymentResponse>();
         Check(confirmed is { Status: "paid", Fulfilled: false }, "API records successful payment while waiting for the form");
+        var wrongImage = await client.PostAsJsonAsync($"/api/Entry?paymentId={paymentId}", registration with
+            {
+                ImgUrl = uploadedUrl!.Replace(paymentId.ToString("N"), Guid.NewGuid().ToString("N"))
+            });
+        Check(wrongImage.StatusCode == HttpStatusCode.BadRequest, "Registration rejects assets belonging to another reference");
         var registered = await client.PostAsJsonAsync($"/api/Entry?paymentId={paymentId}", registration);
         var completed = await registered.Content.ReadFromJsonAsync<PaymentResponse>();
         Check(registered.StatusCode == HttpStatusCode.OK && completed!.Fulfilled, "Entry API registers the form after verified payment without an admin key");
+        var savedEntry = await context.Entries.SingleAsync(entry => entry.Id == paymentId);
+        Check(savedEntry.ImgUrl == uploadedUrl, "Database stores the uploaded asset URL, not image bytes");
         var retries = await Task.WhenAll(Enumerable.Range(0, 8).Select(_ => client.PostAsJsonAsync($"/api/Entry?paymentId={paymentId}", registration)));
         Check(retries.All(response => response.StatusCode == HttpStatusCode.OK), "Entry registration safely handles concurrent HTTP retries");
         Check(await context.ScoreAdditions.CountAsync(addition => addition.Id == paymentId) == 1 && gateway.Created == 1,

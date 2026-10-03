@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { useLookups } from '../../../shared/config/useLookups'
 import { getPendingEntry, savePendingEntry } from '../data/pendingEntry'
-import { profileImageDataUrl } from '../data/profileImage'
+import { uploadProfileImage } from '../../../shared/api/services/profileImageApi'
 
 export function PaidEntryEditor({ paymentId, onRetry }: { paymentId: string; onRetry: () => void })
 {
@@ -17,7 +17,7 @@ export function PaidEntryEditor({ paymentId, onRetry }: { paymentId: string; onR
     setBusy(true)
     setError('')
     try {
-      savePendingEntry(paymentId, { ...entry, imgUrl: image ? await profileImageDataUrl(image) : entry.imgUrl })
+      savePendingEntry(paymentId, { ...entry, imgUrl: image ? await uploadProfileImage(image, paymentId) : entry.imgUrl })
       onRetry()
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : 'Could not save your entry details.')
