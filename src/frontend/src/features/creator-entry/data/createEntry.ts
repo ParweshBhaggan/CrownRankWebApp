@@ -17,21 +17,16 @@ export async function createEntry(draft: RankingEntryDraft, entryReference: stri
     throw new Error('A selected social platform is not currently available.')
   }
 
-  // await postEntry({
-  //   name: draft.name.trim(),
-  //   username: draft.username.trim(),
-  //   imgUrl: await profileImageDataUrl(draft.profileImage),
-  //   score: draft.contribution,
-  //   categories: [{ name: selected.name, description: selected.description ?? '' }],
-  //   socialMediaPlatforms: draft.socialLinks.map((link) => ({ platformName: link.platform, url: link.url.trim() })),
-  // })
-
-  const res = await testPayment({
-    Name: draft.name.trim(),
-    Price: draft.contribution,
+  await postEntry({
+    name: draft.name.trim(),
+    username: draft.username.trim(),
+    imgUrl: await profileImageDataUrl(draft.profileImage),
+    score: draft.contribution,
+    categories: [{ name: selected.name, description: selected.description ?? '' }],
+    socialMediaPlatforms: draft.socialLinks.map((link) => ({ platformName: link.platform, url: link.url.trim() })),
   })
 
-  console.log('Payment URL:', res.url)
-  redirectToUrl(res.url)
+ 
+
 
 }
