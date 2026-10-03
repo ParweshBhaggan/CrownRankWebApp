@@ -2,6 +2,8 @@ using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using System.Collections.Concurrent;
 using CrownRankApp.Application.Payments;
+using CrownRankApp.Application.Dtos.Category;
+using CrownRankApp.Application.Dtos.SocialMedia;
 using CrownRankApp.Domain.Models;
 using CrownRankApp.Infrastructure.Data;
 using CrownRankApp.Infrastructure.Payments;
@@ -53,8 +55,17 @@ static class PaymentChecks
             using var imageBytes = new MemoryStream();
             sourceImage.SaveAsPng(imageBytes);
             var png = "data:image/png;base64," + Convert.ToBase64String(imageBytes.ToArray());
-            var request = new EntrySubmissionRequest(Guid.NewGuid(), 12.50m, "Paid creator", "paid_creator", category.Id,
-                [new SocialProfileRequest(platform.Id, "https://instagram.com/paid_creator")], png, true);
+            var referenceId = Guid.NewGuid();
+            var request = new CheckoutRequest("Paid creator", 12.50m);
+            var registration = new EntryRegistrationRequest(request.Name, "paid_creator", png, 99999m,
+                [new CategoryDto
+                {
+                    Name = category.Name
+                }], [new SocialMediaPlatformDto
+                {
+                    PlatformName = platform.Name,
+                    Url = "https://instagram.com/paid_creator"
+                }], true);
             foreach (var amount in new[]
             {
                 0m,
@@ -64,48 +75,102 @@ static class PaymentChecks
                 10.001m
             })
             {
-                await Reject<ArgumentException>(() => With(service => service.StartEntryAsync(request with
+                await Reject<ArgumentException>(() => With(service => service.StartEntryAsync(Guid.NewGuid(), request with
                             {
                                 Amount = amount
                             })), $"Checkout rejects {amount}");
             }
-            await Reject<ArgumentException>(() => With(service => service.StartEntryAsync(request with
-                        {
-                            AcceptedAgreements = false
-                        })), "Agreement acceptance is enforced on the server");
-            var prepared = await With(service => service.PrepareEntryAsync(request));
-            Check(gateway.Created == 0, "Saving an entry submission does not create a Stripe session");
-            var session = (await With(service => service.StartCheckoutAsync(prepared.Id, new CheckoutRequest(prepared.Name, prepared.Amount))))!;
-            var storedImage = Image.Identify(Path.Combine(folder, "assets", "profiles", $"{session.Id:N}.webp"));
-            Check(storedImage.Width == 300 && storedImage.Height == 250, "Server resizes profile images to the maximum dimensions");
-            Check(session.Status == "pending", "New entry remains pending before payment");
+            var session = await With(service => service.StartEntryAsync(referenceId, request));
+            Check(session.Status == "pending", "Name and amount alone start entry checkout");
+            Check(!Directory.Exists(Path.Combine(folder, "assets")), "Checkout does not upload or store a profile image");
             await using (var context = new ApplicationDbContext(options))
             {
-                Check(!await context.Entries.AnyAsync(entry => entry.Username == request.Username), "Unpaid entry is absent from the board");
+                Check(!await context.Entries.AnyAsync(entry => entry.Id == referenceId), "Unpaid entry is absent from the board");
+                Check((await context.PaymentOperations.FindAsync(referenceId))!.EntryJson == null, "Checkout stores no entry form payload");
             }
-            Check((await With(service => service.StartEntryAsync(request))).Id == session.Id, "Submission retry reuses its operation");
-            Check(gateway.Created == 1, "Submission retry does not create another Stripe session");
-            await Reject<InvalidOperationException>(() => With(service => service.StartEntryAsync(request with
+            await Reject<InvalidOperationException>(() => With(service => service.RegisterEntryAsync(referenceId, registration)), "Unpaid registration is rejected");
+            Check((await With(service => service.StartEntryAsync(referenceId, request))).Id == session.Id, "Checkout retry reuses its operation");
+            Check(gateway.Created == 1, "Checkout retry does not create another Stripe session");
+            await Reject<InvalidOperationException>(() => With(service => service.StartEntryAsync(referenceId, request with
                         {
                             Amount = 20m
-                        })), "Changed details cannot reuse a reference");
-            await Reject<InvalidOperationException>(() => With(service => service.StartEntryAsync(request with
+                        })), "Changed amount cannot reuse a checkout reference");
+            await Reject<InvalidOperationException>(() => With(service => service.StartEntryAsync(referenceId, request with
                         {
-                            ReferenceId = Guid.NewGuid()
-                        })), "Username is reserved during checkout");
-            await Reject<ArgumentException>(() => With(service => service.StartCheckoutAsync(session.Id, new CheckoutRequest(request.Name, 20m))), "Checkout cannot change the reserved amount");
-            await Reject<ArgumentException>(() => With(service => service.StartCheckoutAsync(session.Id, new CheckoutRequest("Another name", request.Amount))), "Checkout cannot change the saved name");
-            Check(gateway.Created == 1, "Rejected checkout edits do not create a Stripe session");
+                            Name = "Another name"
+                        })), "Changed name cannot reuse a checkout reference");
             gateway.Pay(session.Id);
             await Task.WhenAll(Enumerable.Range(0, 8).Select(_ => With(service => service.ConfirmAsync(session.Id))));
+            var received = (await With(service => service.StatusAsync(session.Id)))!;
+            Check(received.Status == "paid" && !received.Fulfilled, "Payment is recorded before the browser registers its form");
+            await using (var context = new ApplicationDbContext(options))
+            {
+                Check(!await context.Entries.AnyAsync(entry => entry.Id == referenceId), "A paid checkout alone does not fabricate an incomplete entry");
+            }
+            await Reject<ArgumentException>(() => With(service => service.RegisterEntryAsync(referenceId, registration with
+                        {
+                            AcceptedAgreements = false
+                        })), "Registration enforces agreement acceptance");
+            await Reject<ArgumentException>(() => With(service => service.RegisterEntryAsync(referenceId, registration with
+                        {
+                            Name = "Another name"
+                        })), "Registered name must match the paid checkout");
+            await Reject<ArgumentException>(() => With(service => service.RegisterEntryAsync(referenceId, registration with
+                        {
+                            ImgUrl = "data:image/png;base64,invalid"
+                        })), "Invalid profile images do not consume the payment");
+            await Task.WhenAll(Enumerable.Range(0, 8).Select(_ => With(service => service.RegisterEntryAsync(referenceId, registration))));
             var paid = (await With(service => service.StatusAsync(session.Id)))!;
-            Check(paid.Fulfilled && paid.Status == "paid", "Concurrent confirmations fulfill the entry once");
+            Check(paid.Fulfilled && paid.Status == "paid", "Concurrent registrations create the paid entry once");
+            var storedImage = Image.Identify(Path.Combine(folder, "assets", "profiles", $"{session.Id:N}.webp"));
+            Check(storedImage.Width == 300 && storedImage.Height == 250, "Registration saves a validated and resized image");
             await using (var context = new ApplicationDbContext(options))
             {
                 Check(await context.ScoreAdditions.CountAsync(row => row.Id == session.Id) == 1, "One opening score exists per paid operation");
+                Check((await context.Entries.FindAsync(referenceId))!.Score == request.Amount, "Entry score comes from the verified amount");
                 var payment = await context.PaymentOperations.FindAsync(session.Id);
-                Check(payment!.AgreementsAcceptedAt != null && payment.TermsVersion == settings.TermsVersion, "Agreement evidence is persisted");
+                Check(payment!.AgreementsAcceptedAt != null && payment.TermsVersion == settings.TermsVersion, "Agreement evidence is persisted at registration");
             }
+            await With(service => service.RegisterEntryAsync(referenceId, registration with
+                    {
+                        Username = "ignored_retry"
+                    }));
+            Check(gateway.Created == 1, "Registration retries never charge again");
+            var collision = await With(service => service.StartEntryAsync(Guid.NewGuid(), request));
+            gateway.Pay(collision.Id);
+            await Reject<InvalidOperationException>(() => With(service => service.RegisterEntryAsync(collision.Id, registration)), "A taken username leaves its payment available for correction");
+            Check((await With(service => service.StatusAsync(collision.Id)))!.Status == "paid", "Validation failure preserves verified payment");
+            Check((await With(service => service.RegisterEntryAsync(collision.Id, registration with
+                        {
+                            Username = "corrected_creator"
+                        })))!.Fulfilled, "Corrected registration reuses the existing paid checkout");
+            var competing = await Task.WhenAll(Enumerable.Range(0, 2).Select(_ => With(service => service.StartEntryAsync(Guid.NewGuid(), request))));
+            foreach (var checkout in competing)
+            {
+                gateway.Pay(checkout.Id);
+            }
+            async Task<PaymentResponse?> RegisterSafely(Guid paymentId)
+            {
+                try
+                {
+                    return await With(service => service.RegisterEntryAsync(paymentId, registration with
+                            {
+                                Username = "race_creator"
+                            }));
+                }
+                catch (InvalidOperationException)
+                {
+                    return null;
+                }
+            }
+            var registrations = await Task.WhenAll(competing.Select(checkout => RegisterSafely(checkout.Id)));
+            Check(registrations.Count(result => result?.Fulfilled == true) == 1, "Concurrent paid registrations cannot take the same username");
+            var retryId = competing[Array.FindIndex(registrations, result => result is null)].Id;
+            Check((await With(service => service.RegisterEntryAsync(retryId, registration with
+                        {
+                            Username = "race_corrected"
+                        })))!.Fulfilled,
+                "A username race rolls back the profile and permits correction without payment reuse");
             var boost = new BoostCheckoutRequest(Guid.NewGuid(), paid.EntryId!.Value, 10m);
             var boostSession = await With(service => service.StartBoostAsync(boost));
             await using (var context = new ApplicationDbContext(options))
@@ -118,6 +183,7 @@ static class PaymentChecks
                     await new EntryServices(context, clock).DeleteAsync(paid.EntryId.Value);
                 }, "Active boost prevents deletion of its entry");
             gateway.Pay(boostSession.Id);
+            await Reject<InvalidOperationException>(() => With(service => service.RegisterEntryAsync(boostSession.Id, registration)), "A boost payment cannot be used to register another entry");
             await Task.WhenAll(Enumerable.Range(0, 12).Select(_ => With(service => service.ConfirmAsync(boostSession.Id))));
             await using (var context = new ApplicationDbContext(options))
             {
@@ -146,19 +212,10 @@ static class PaymentChecks
             gateway.Pay(mismatch.Id);
             gateway.ChangeAmount(mismatch.Id);
             await Reject<InvalidOperationException>(() => With(service => service.ConfirmAsync(mismatch.Id)), "Payment amount mismatch is rejected");
-            var expiredRequest = request with
-            {
-                ReferenceId = Guid.NewGuid(),
-                Username = "expires_creator"
-            };
-            var expired = await With(service => service.StartEntryAsync(expiredRequest));
+            var expired = await With(service => service.StartEntryAsync(Guid.NewGuid(), new CheckoutRequest("Expires creator", 10m)));
             gateway.Expire(expired.Id);
             Check((await With(service => service.ConfirmAsync(expired.Id)))!.Status == "expired", "Stripe expiry is recorded");
-            await With(service => service.StartEntryAsync(expiredRequest with
-                    {
-                        ReferenceId = Guid.NewGuid()
-                    }));
-            Check(true, "Expired checkout releases its username reservation");
+            await Reject<InvalidOperationException>(() => With(service => service.RegisterEntryAsync(expired.Id, registration)), "Expired checkout cannot register an entry");
             var recoveryBoost = await With(service => service.StartBoostAsync(boost with
                     {
                         ReferenceId = Guid.NewGuid()
@@ -235,7 +292,7 @@ static class PaymentChecks
         }
     }
 
-    private sealed class FakeGateway(TimeProvider clock) : IPaymentGateway
+    internal sealed class FakeGateway(TimeProvider clock) : IPaymentGateway
     {
         private readonly ConcurrentDictionary<Guid, VerifiedCheckout> sessions = new();
         public int Created;
@@ -263,7 +320,11 @@ static class PaymentChecks
 
         public VerifiedCheckout? VerifyWebhook(string payload, string signature)
         {
-            return sessions[Guid.Parse(payload)];
+            if (!Guid.TryParse(payload, out var paymentId))
+            {
+                throw new InvalidWebhookException();
+            }
+            return sessions[paymentId];
         }
 
         public void Pay(Guid id)

@@ -5,16 +5,6 @@ export interface PaymentSettings {
   termsVersion: string
   privacyVersion: string
 }
-export interface EntrySubmissionRequest {
-  referenceId: string
-  amount: number
-  name: string
-  username: string
-  categoryId: string
-  socialProfiles: { platformId: string; url: string }[]
-  imageDataUrl: string
-  acceptedAgreements: boolean
-}
 export interface CheckoutResponse {
   id: string
   url: string | null
@@ -27,12 +17,10 @@ export interface PaymentResponse {
   entryId: string | null
   amount: number
   currency: string
+  purpose: 'entry' | 'boost'
 }
 
 export interface CheckoutRequest {
   name: string
   amount: number
-}
-export interface CheckoutPreparationResponse extends CheckoutRequest {
-  id: string
 }

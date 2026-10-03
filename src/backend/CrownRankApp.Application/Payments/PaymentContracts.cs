@@ -1,4 +1,6 @@
 using CrownRankApp.Domain.Models;
+using CrownRankApp.Application.Dtos.Category;
+using CrownRankApp.Application.Dtos.SocialMedia;
 
 namespace CrownRankApp.Application.Payments;
 
@@ -56,15 +58,14 @@ public sealed class PaymentSettings
 }
 
 public sealed record SocialProfileRequest(Guid PlatformId, string Url);
-public sealed record EntrySubmissionRequest(Guid ReferenceId, decimal Amount, string Name, string Username, Guid CategoryId, List<SocialProfileRequest> SocialProfiles, string ImageDataUrl, bool AcceptedAgreements);
+public sealed record EntryRegistrationRequest(string Name, string Username, string ImgUrl, decimal Score, List<CategoryDto> Categories, List<SocialMediaPlatformDto> SocialMediaPlatforms, bool AcceptedAgreements);
 public sealed record BoostCheckoutRequest(Guid ReferenceId, Guid EntryId, decimal Amount);
 public sealed record CheckoutResponse(Guid Id, string? Url, string Status);
-public sealed record PaymentResponse(Guid Id, string Status, bool Fulfilled, Guid? EntryId, decimal Amount, string Currency);
+public sealed record PaymentResponse(Guid Id, string Status, bool Fulfilled, Guid? EntryId, decimal Amount, string Currency, string Purpose);
 public sealed record VerifiedCheckout(string SessionId, Guid OperationId, long AmountMinor, string Currency, string Status, bool Paid, string? PaymentIntentId, DateTime? PaidAt, string? Url, bool LiveMode, bool Failed = false);
 
 // Only the display name and amount form the checkout payload.
 public sealed record CheckoutRequest(string Name, decimal Amount);
-public sealed record CheckoutPreparationResponse(Guid Id, string Name, decimal Amount);
 // Server-owned context is separate from the public checkout DTO.
 public sealed record CheckoutContext(Guid OperationId, string Currency, DateTime CreatedAt, DateTime ExpiresAt);
 
@@ -83,7 +84,9 @@ public interface IPaymentStore
 {
     Task<PaymentOperation?> FindAsync(Guid id, CancellationToken ct);
 
-    Task<PaymentOperation> ReserveAsync(PaymentOperation operation, EntrySubmissionRequest? entry, CancellationToken ct);
+    Task<PaymentOperation> ReserveAsync(PaymentOperation operation, CancellationToken ct);
+
+    Task RegisterEntryAsync(Guid id, EntryRegistrationRequest entry, CancellationToken ct);
 
     Task AttachSessionAsync(Guid id, VerifiedCheckout checkout, CancellationToken ct);
 

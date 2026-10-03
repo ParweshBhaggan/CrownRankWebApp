@@ -1,6 +1,6 @@
 # Stripe payments
 
-Entry submissions and boosts use Stripe-hosted Checkout. CrownRank charges USD by default; a $1 contribution adds 1 score before Stripe fees. Both operations accept $10–$10,000, with up to two decimal places.
+Entry checkout and boosts use Stripe-hosted Checkout. CrownRank charges USD by default; a $1 contribution adds 1 score before Stripe fees. Both operations accept $10–$10,000, with up to two decimal places.
 
 ## Configuration
 
@@ -58,30 +58,30 @@ Put the listener's `whsec_...` value in `Stripe:WebhookSecret` and restart the A
 | Method | Route | Purpose |
 |---|---|---|
 | GET | `/api/payments/settings` | Public currency, limits, agreement versions |
-| POST | `/api/payments/entry-submissions` | Validate and reserve an entry profile locally; return payment ID, name, and amount |
-| POST | `/api/payments/{id}/checkout` | Accept only `{ name, amount }` matching the saved submission; return Checkout URL |
+| POST | `/api/payments/entry-checkout/{referenceId}` | Accept only `{ name, amount }`; return Checkout URL |
+| POST | `/api/Entry?paymentId={referenceId}` | Register the original entry form after backend payment verification |
 | POST | `/api/payments/entries/{entryId}/boost-checkout/{referenceId}` | Accept only `{ name, amount }`; the target and retry reference are in the route |
 | GET | `/api/payments/{id}` | Read minimal local payment/fulfillment status |
-| POST | `/api/payments/{id}/confirm` | Retrieve Stripe state and fulfill a verified payment |
+| POST | `/api/payments/{id}/confirm` | Verify payment; fulfill boosts and registered entries |
 | POST | `/api/payments/{id}/resume` | Resume the existing Checkout session or recover its result |
 | POST | `/api/payments/stripe-webhook` | Verify Stripe's signature and process authoritative state |
 
 Payment IDs are random UUID capabilities. Keep return links private. Public status responses contain no customer email, billing data, draft profile, or Stripe secret. The supplied `session_id` query parameter is never proof of payment; confirmation uses the session associated with the stored payment ID.
 
-All other API mutations require `X-Admin-Key`, matching `Admin:ApiKey`. An empty configured admin key disables administrative API mutations. Public creation and boosting through `/api/Entry` and `/api/Entry/{id}/boost` have been removed. Direct score operations remain internal for existing integration checks, with no public no-payment endpoint.
+Paid entry registration is public and independently checks its payment reference. All other API mutations require `X-Admin-Key`, matching `Admin:ApiKey`. An empty configured admin key disables administrative API mutations. Entry creation through `/api/Entry` requires a verified, unused entry payment. Public boosting through `/api/Entry/{id}/boost` has been removed. Direct score operations remain internal for existing integration checks, with no public no-payment endpoint.
 
 ## Persistence and recovery
 
-- A pending `PaymentOperation` stores its amount/currency, request fingerprint, purpose, session/payment intent IDs, agreement evidence, and fulfillment timestamps. Entry drafts are persisted separately from published entries as a validated JSON snapshot with lookup IDs and a stored image URL.
+- A pending `PaymentOperation` stores its amount/currency, request fingerprint, purpose, session/payment intent IDs, agreement evidence, and fulfillment timestamps. Entry checkout stores only payment information and the display name. The frontend retains the existing entry form and resized image in localStorage under the stable payment reference before redirecting.
 - Repeating a reference with the same details resumes its operation; changed details are rejected. The persisted operation ID determines the Stripe idempotency key. Stripe session creation parameters remain stable across retries.
 - The webhook verifies the raw request body and signature, checks test/live environment, and handles completed, asynchronous success/failure, and expired events. It then retrieves current Stripe state, so stale events cannot reverse a successful payment.
-- Amount, currency, metadata, and session association must match the stored operation. Payment receipt is persisted before fulfillment. A transaction claims fulfillment, creates the entry or increments its score, records one `ScoreAddition` with the operation ID, and commits fulfillment together. Duplicate or concurrent confirmations cannot credit twice.
+- Amount, currency, metadata, and session association must match the stored operation. Payment receipt is persisted before fulfillment. After payment, the browser calls the existing `postEntry` flow with name, username, imgUrl, categories, socialMediaPlatforms, score, and agreement acceptance. The server ignores the supplied score and uses the verified payment amount. A transaction validates the profile, claims fulfillment, creates the entry or increments its score, and records one `ScoreAddition` with the payment ID. Duplicate or concurrent confirmations cannot credit twice.
 - Score history uses the verified Stripe charge timestamp. A delayed webhook retains the payment's original UTC ranking date; an older payment cannot move an existing entry's tie timestamp backwards.
-- The success page polls confirmation for a limited period and offers manual retry. A paid operation whose fulfillment needs recovery stays distinguishable from an unpaid operation.
-- Returning to the cancel page does not cancel a Stripe session or imply failure. The visitor can resume the same session. Stripe expiry releases the username reservation; a new submission uses a new reference.
-- A background worker checks pending payments every minute. It recovers saved sessions and paid-but-unfulfilled operations. For a session whose creation response was lost, it first retries the original idempotent request while its fixed expiry still permits creation; later it searches Stripe sessions in the original creation window. It releases a never-created operation only after checking Stripe and waiting two days. Failed scans remain retryable; individual failures do not stop other operations.
-- Profile uploads are decoded, checked, resized to fit 300 × 250, stripped of metadata, and saved as WebP in `wwwroot/assets/profiles`. Use a persistent volume for this directory when hosting. Expired entry drafts/images are removed after seven days. Payment audit records remain in the database.
-- Active boost checkouts prevent administrative deletion of their entry. Category/platform deletion is blocked while entry payments are active, so their validated lookup references remain available. Paid operations that cannot fulfill remain paid and require recovery/administrator attention, rather than silently being marked unpaid.
+- The success page verifies payment, registers the retained entry form, and clears browser data only after successful registration. Network interruptions retain the form for retry. Registration validation errors allow editing the paid profile without creating another checkout or charge. Payment confirmation and registration retries are safe under concurrent requests.
+- Returning to the cancel page does not cancel a Stripe session or imply failure. The visitor can resume the same session. An expired checkout cannot register an entry; a new checkout uses a new reference. No username is reserved before entry checkout.
+- A background worker checks pending payments every minute. It recovers saved sessions and fulfillment for boosts or profiles already present on the server. A paid entry without a form waits for the browser to submit it and remains recorded as paid. For a session whose creation response was lost, it first retries the original idempotent request while its fixed expiry still permits creation; later it searches Stripe sessions in the original creation window. It releases a never-created operation only after checking Stripe and waiting two days. Failed scans remain retryable; individual failures do not stop other operations.
+- Profile uploads are decoded, checked, resized to fit 300 × 250, stripped of metadata, and saved as WebP in `wwwroot/assets/profiles`. Use a persistent volume for this directory when hosting. Images are uploaded only during paid registration. Legacy expired drafts/images from earlier versions are removed after seven days. Payment audit records remain in the database.
+- Active boost checkouts prevent administrative deletion of their entry. Registration locks its selected categories/platforms while creating the entry, and active legacy entry drafts protect their lookup references. Paid operations that cannot fulfill remain paid and require recovery/administrator attention, rather than silently being marked unpaid.
 
 Webhook handling performs a short database transaction before acknowledging processed events. On processing failure it returns 503 so Stripe can retry. Unrelated verified events are acknowledged without awarding scores. Monitor recovery and webhook error logs, especially payments marked paid with a null fulfillment timestamp.
 
@@ -89,7 +89,9 @@ Before live use, set live credentials and `LiveMode: true`, configure the public
 
 ### Checkout payload and backend notation
 
-Both public checkout endpoints take `CheckoutRequest(string Name, decimal Amount)`. Entry creation first calls `entry-submissions` to persist the profile and reserve its username inside CrownRank. Its response supplies the ID, name, and amount for checkout. The checkout service rejects a name or amount that differs from that reservation. Boost requests use the display name `CrownRank creator boost`; the route supplies the entry ID and a stable retry reference. A retry retains its original submission reference and can reuse the saved Stripe session.
+Both checkout endpoints take `CheckoutRequest(string Name, decimal Amount)`, following the supplied ZIP example. The stable retry reference is in the route. Entry checkout returns the Stripe URL immediately without posting or storing the full entry profile. The old entry form payload is registered through `POST /api/Entry?paymentId=...` only after server verification, with `acceptedAgreements` added for consent evidence. Categories and social platforms still use the names returned by the existing lookup API.
+
+The form is retained in the original browser and origin across Stripe navigation, cancellation, and page reloads. Set `Stripe:FrontendUrl` to the same frontend origin used to fill the form. Finish on the success/return page; a webhook records payment even if the visitor loses their connection, but it cannot reconstruct a profile that has not been submitted. Reopen the return link in the same browser to retry registration. If browser data is deleted, entry details must be supplied again; the backend still retains the paid payment reference. Paid entries with no registered profile are distinguishable in payment status and server records.
 
 The Stripe gateway takes the same two-field DTO alongside a separate server-owned context containing the operation ID, currency, and dates. It never takes an entry or payment entity. Stripe receives a single product name and amount plus the currency, internal reference, expiry, redirect URLs, and idempotency key needed for reliable confirmation. Profile images, usernames, categories, and social links stay inside CrownRank.
 

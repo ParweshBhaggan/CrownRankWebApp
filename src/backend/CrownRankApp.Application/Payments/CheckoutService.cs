@@ -8,24 +8,63 @@ namespace CrownRankApp.Application.Payments;
 
 public sealed class CheckoutService(IPaymentStore store, IPaymentGateway gateway, PaymentSettings settings, TimeProvider clock)
 {
-    public async Task<CheckoutPreparationResponse> PrepareEntryAsync(EntrySubmissionRequest request, CancellationToken ct = default)
+    public async Task<CheckoutResponse> StartEntryAsync(Guid referenceId, CheckoutRequest request, CancellationToken ct = default)
     {
-        ValidateReference(request.ReferenceId);
+        ValidateReference(referenceId);
         settings.ValidateAmount(request.Amount);
+        if (string.IsNullOrWhiteSpace(request.Name) || request.Name.Trim().Length > 100)
+        {
+            throw new ArgumentException("Provide a name of at most 100 characters.");
+        }
+        var normalized = request with
+        {
+            Name = request.Name.Trim()
+        };
+        var operation = NewOperation(referenceId, request.Amount, PaymentPurpose.Entry, Hash(normalized));
+        operation.Description = normalized.Name;
+        operation.TermsVersion = settings.TermsVersion;
+        operation.PrivacyVersion = settings.PrivacyVersion;
+        return await CheckoutAsync(await ReserveAsync(operation, ct), ct);
+    }
+
+    public async Task<PaymentResponse?> RegisterEntryAsync(Guid paymentId, EntryRegistrationRequest request, CancellationToken ct = default)
+    {
+        // A return URL alone is not proof: retrieve and verify the associated Stripe payment first.
+        var confirmed = await ConfirmAsync(paymentId, ct);
+        if (confirmed is null)
+        {
+            return null;
+        }
+        var operation = (await store.FindAsync(paymentId, ct))!;
+        if (operation.Purpose != PaymentPurpose.Entry)
+        {
+            throw new InvalidOperationException("This payment is for a boost, not a new entry.");
+        }
+        if (operation.FulfilledAt is not null)
+        {
+            return Response(operation);
+        }
+        if (operation.Status != PaymentStatus.Paid)
+        {
+            throw new InvalidOperationException("Complete payment before registering your entry.");
+        }
         if (!request.AcceptedAgreements)
         {
-            throw new ArgumentException("Accept the terms and privacy policy before paying.");
+            throw new ArgumentException("Accept the terms and privacy policy before registering.");
         }
-        if (string.IsNullOrWhiteSpace(request.Name) || request.Name.Trim().Length > 100
+        if (request.Name?.Trim() != operation.Description
             || string.IsNullOrWhiteSpace(request.Username) || !Regex.IsMatch(request.Username, "^[a-zA-Z0-9._-]{2,40}$")
-            || request.CategoryId == Guid.Empty || request.SocialProfiles is null || request.SocialProfiles.Count is < 1 or > 5
-            || request.SocialProfiles.Select(profile => profile.PlatformId).Distinct().Count() != request.SocialProfiles.Count)
+            || request.Categories is null || request.Categories.Count is < 1 or > 20
+            || request.Categories.Any(category => category is null || string.IsNullOrWhiteSpace(category.Name))
+            || request.SocialMediaPlatforms is null || request.SocialMediaPlatforms.Count is < 1 or > 5
+            || request.SocialMediaPlatforms.Any(profile => profile is null || string.IsNullOrWhiteSpace(profile.PlatformName))
+            || request.SocialMediaPlatforms.Select(profile => profile.PlatformName.Trim().ToLowerInvariant()).Distinct().Count() != request.SocialMediaPlatforms.Count)
         {
-            throw new ArgumentException("Provide a valid name, username, category, and one to five distinct social profiles.");
+            throw new ArgumentException("Provide the checkout name, a valid username, category, and one to five distinct social profiles.");
         }
-        foreach (var profile in request.SocialProfiles)
+        foreach (var profile in request.SocialMediaPlatforms)
         {
-            if (profile.PlatformId == Guid.Empty || profile.Url is null || profile.Url.Length > 500
+            if (profile.Url is null || profile.Url.Length > 500
                 || !Uri.TryCreate(profile.Url, UriKind.Absolute, out var uri) || uri.Scheme != "https" || uri.UserInfo.Length != 0)
             {
                 throw new ArgumentException("Social profiles require valid HTTPS URLs.");
@@ -36,35 +75,8 @@ public sealed class CheckoutService(IPaymentStore store, IPaymentGateway gateway
             Name = request.Name.Trim(),
             Username = request.Username.ToLowerInvariant()
         };
-        var operation = NewOperation(request.ReferenceId, request.Amount, PaymentPurpose.Entry, Hash(normalized));
-        operation.Description = normalized.Name;
-        operation.ReservedUsername = normalized.Username;
-        operation.AgreementsAcceptedAt = clock.GetUtcNow().UtcDateTime;
-        operation.TermsVersion = settings.TermsVersion;
-        operation.PrivacyVersion = settings.PrivacyVersion;
-        var reserved = await ReserveAsync(operation, normalized, ct);
-        return new CheckoutPreparationResponse(reserved.Id, reserved.Description, reserved.Amount);
-    }
-
-    public async Task<CheckoutResponse> StartEntryAsync(EntrySubmissionRequest request, CancellationToken ct = default)
-    {
-        var prepared = await PrepareEntryAsync(request, ct);
-        return (await StartCheckoutAsync(prepared.Id, new CheckoutRequest(prepared.Name, prepared.Amount), ct))!;
-    }
-
-    public async Task<CheckoutResponse?> StartCheckoutAsync(Guid id, CheckoutRequest request, CancellationToken ct = default)
-    {
-        var operation = await store.FindAsync(id, ct);
-        if (operation is null)
-        {
-            return null;
-        }
-        settings.ValidateAmount(request.Amount);
-        if (request.Name != operation.Description || request.Amount != operation.Amount)
-        {
-            throw new ArgumentException("Checkout name and amount must match the saved submission.");
-        }
-        return await CheckoutAsync(operation, ct);
+        await store.RegisterEntryAsync(paymentId, normalized, ct);
+        return Response((await store.FindAsync(paymentId, ct))!);
     }
 
     public async Task<CheckoutResponse> StartBoostCheckoutAsync(Guid entryId, Guid referenceId, CheckoutRequest request, CancellationToken ct = default)
@@ -87,7 +99,7 @@ public sealed class CheckoutService(IPaymentStore store, IPaymentGateway gateway
         var operation = NewOperation(request.ReferenceId, request.Amount, PaymentPurpose.Boost, Hash(request));
         operation.EntryId = request.EntryId;
         operation.Description = "CrownRank creator boost";
-        return await CheckoutAsync(await ReserveAsync(operation, null, ct), ct);
+        return await CheckoutAsync(await ReserveAsync(operation, ct), ct);
     }
 
     public async Task<PaymentResponse?> StatusAsync(Guid id, CancellationToken ct = default)
@@ -127,7 +139,7 @@ public sealed class CheckoutService(IPaymentStore store, IPaymentGateway gateway
         await ApplyAsync(await gateway.RetrieveAsync(checkout.SessionId, ct), ct);
     }
 
-    private async Task<PaymentOperation> ReserveAsync(PaymentOperation operation, EntrySubmissionRequest? entry, CancellationToken ct)
+    private async Task<PaymentOperation> ReserveAsync(PaymentOperation operation, CancellationToken ct)
     {
         var existing = await store.FindAsync(operation.Id, ct);
         if (existing is not null)
@@ -138,7 +150,7 @@ public sealed class CheckoutService(IPaymentStore store, IPaymentGateway gateway
             }
             return existing;
         }
-        return await store.ReserveAsync(operation, entry, ct);
+        return await store.ReserveAsync(operation, ct);
     }
 
     private async Task<CheckoutResponse> CheckoutAsync(PaymentOperation operation, CancellationToken ct)
@@ -230,6 +242,6 @@ public sealed class CheckoutService(IPaymentStore store, IPaymentGateway gateway
     private static PaymentResponse Response(PaymentOperation operation)
     {
         return new(operation.Id,
-            operation.Status.ToString().ToLowerInvariant(), operation.FulfilledAt is not null, operation.EntryId, operation.Amount, operation.Currency);
+            operation.Status.ToString().ToLowerInvariant(), operation.FulfilledAt is not null, operation.EntryId, operation.Amount, operation.Currency, operation.Purpose.ToString().ToLowerInvariant());
     }
 }

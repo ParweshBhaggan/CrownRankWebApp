@@ -8,10 +8,11 @@ import type { RankingEntryDraft } from '../../src/features/creator-entry/domain/
 vi.mock('../../src/features/creator-entry/data/profileImage', () => ({ profileImageDataUrl: vi.fn(async () => 'data:image/webp;base64,test') }))
 
 vi.mock('../../src/shared/api/redirect', () => ({ redirectToUrl: vi.fn() }))
+import { getPendingEntry } from '../../src/features/creator-entry/data/pendingEntry'
 import { redirectToUrl } from '../../src/shared/api/redirect'
 
 const originalFetch = globalThis.fetch
-afterEach(() => { globalThis.fetch = originalFetch })
+afterEach(() => { globalThis.fetch = originalFetch; localStorage.clear() })
 
 describe('frontend API adapters', () => {
   it('returns JSON and no-content and reports validation details', async () => {
@@ -42,8 +43,7 @@ describe('frontend API adapters', () => {
       requests.push({ url, init })
       if (url === '/api/Category') return Response.json([{ id: 'science-id', name: 'New science category' }])
       if (url === '/api/SocialMediaDefault') return Response.json([{ id: 'social-id', name: 'New platform' }])
-      if (url === '/api/payments/entry-submissions') return Response.json({ id: 'payment-1', name: 'Ada Lovelace', amount: 12.5 })
-      return Response.json({ id: 'payment-1', url: 'https://checkout.stripe.com/test', status: 'pending' })
+      return Response.json({ id: 'ui-reference', url: 'https://checkout.stripe.com/test', status: 'pending' })
     }
     const draft = {
       acceptedAgreements: true, name: ' Ada Lovelace ', username: ' ada ', category: 'science-id', contribution: 12.5,
@@ -51,14 +51,14 @@ describe('frontend API adapters', () => {
       profileImage: new File(['image'], 'profile.png', { type: 'image/png' }),
     } satisfies RankingEntryDraft
     await createEntry(draft, 'ui-reference')
-    expect(requests.map(request => request.url)).toEqual(['/api/Category', '/api/SocialMediaDefault', '/api/payments/entry-submissions', '/api/payments/payment-1/checkout'])
+    expect(requests.map(request => request.url)).toEqual(['/api/Category', '/api/SocialMediaDefault', '/api/payments/entry-checkout/ui-reference'])
     expect(requests[2].init?.headers).toEqual({ 'Content-Type': 'application/json' })
-    expect(JSON.parse(String(requests[2].init?.body))).toEqual({
-      referenceId: 'ui-reference', name: 'Ada Lovelace', username: 'ada', imageDataUrl: 'data:image/webp;base64,test', amount: 12.5,
-      categoryId: 'science-id', acceptedAgreements: true,
-      socialProfiles: [{ platformId: 'social-id', url: 'https://example.com/ada' }],
+    expect(JSON.parse(String(requests[2].init?.body))).toEqual({ name: 'Ada Lovelace', amount: 12.5 })
+    expect(getPendingEntry('ui-reference')).toEqual({
+      name: 'Ada Lovelace', username: 'ada', imgUrl: 'data:image/webp;base64,test', score: 12.5,
+      categories: [{ name: 'New science category', description: '' }], acceptedAgreements: true,
+      socialMediaPlatforms: [{ platformName: 'New platform', url: 'https://example.com/ada' }],
     })
-    expect(JSON.parse(String(requests[3].init?.body))).toEqual({ name: 'Ada Lovelace', amount: 12.5 })
     expect(redirectToUrl).toHaveBeenCalledWith('https://checkout.stripe.com/test')
   })
 

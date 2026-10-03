@@ -22,17 +22,10 @@ public sealed class PaymentController(CheckoutService checkout, PaymentSettings 
             });
     }
 
-    [HttpPost("entry-submissions")]
-    [RequestSizeLimit(8 * 1024 * 1024)]
-    public Task<IActionResult> PrepareEntry(EntrySubmissionRequest request, CancellationToken ct)
+    [HttpPost("entry-checkout/{referenceId:guid}")]
+    public Task<IActionResult> EntryCheckout(Guid referenceId, CheckoutRequest request, CancellationToken ct)
     {
-        return ExecuteAsync(checkout.PrepareEntryAsync(request, ct));
-    }
-
-    [HttpPost("{id:guid}/checkout")]
-    public Task<IActionResult> EntryCheckout(Guid id, CheckoutRequest request, CancellationToken ct)
-    {
-        return ExecuteAsync(checkout.StartCheckoutAsync(id, request, ct));
+        return ExecuteAsync(checkout.StartEntryAsync(referenceId, request, ct));
     }
 
     [HttpPost("entries/{entryId:guid}/boost-checkout/{referenceId:guid}")]

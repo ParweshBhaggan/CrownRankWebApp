@@ -15,3 +15,8 @@ export function daily_entry_endpoint(date: string): string
   return `/api/Entry/daily?date=${encodeURIComponent(date)}`
 }
 
+
+export function create_entry_endpoint(paymentId: string): string
+{
+  return `/api/Entry?paymentId=${encodeURIComponent(paymentId)}`
+}

@@ -13,7 +13,9 @@ public sealed class AdminApiKeyFilter(IConfiguration configuration) : IAsyncActi
     {
         var request = context.HttpContext.Request;
         if (HttpMethods.IsGet(request.Method) || HttpMethods.IsHead(request.Method) || HttpMethods.IsOptions(request.Method)
-            || context.Controller is PaymentController or StripeWebhookController)
+            || context.Controller is PaymentController or StripeWebhookController
+            || (context.Controller is EntryController && HttpMethods.IsPost(request.Method)
+            && context.ActionDescriptor.RouteValues["action"] == nameof(EntryController.AddEntry)))
         {
             await next();
             return;

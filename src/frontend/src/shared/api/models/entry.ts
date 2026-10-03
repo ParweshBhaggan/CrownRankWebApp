@@ -19,3 +19,7 @@ export interface ApiDailyEntry {
   readonly scoreReachedDate: string
 }
 
+
+export interface PaidEntryRequest extends CreateEntryRequest {
+  readonly acceptedAgreements: boolean
+}

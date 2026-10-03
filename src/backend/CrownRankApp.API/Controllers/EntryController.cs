@@ -1,4 +1,6 @@
+using CrownRankApp.Application.Payments;
 using CrownRankApp.Application.Dtos.Entry;
+using Microsoft.AspNetCore.RateLimiting;
 using CrownRankApp.Application.Services.Entry;
 using CrownRankApp.Domain.Models;
 using Microsoft.AspNetCore.Mvc;
@@ -7,7 +9,7 @@ namespace CrownRankApp.API.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    public class EntryController(IEntryServices service) : ControllerBase
+    public class EntryController(IEntryServices service, CheckoutService checkout) : ControllerBase
     {
         [HttpGet]
         [EndpointSummary("Get all entries")]
@@ -50,6 +52,39 @@ namespace CrownRankApp.API.Controllers
                     });
             }
             return Ok(await service.GetDailyAsync(selected));
+        }
+
+        [HttpPost]
+        [EnableRateLimiting("payments")]
+        [RequestSizeLimit(8 * 1024 * 1024)]
+        [EndpointSummary("Register an entry after verified Stripe payment")]
+        public async Task<IActionResult> AddEntry([FromQuery] Guid paymentId, EntryRegistrationRequest request, CancellationToken ct)
+        {
+            if (paymentId == Guid.Empty)
+            {
+                return Problem(detail: "A payment reference is required.", statusCode: 400);
+            }
+            try
+            {
+                var result = await checkout.RegisterEntryAsync(paymentId, request, ct);
+                if (result is null)
+                {
+                    return NotFound();
+                }
+                return Ok(result);
+            }
+            catch (ArgumentException exception)
+            {
+                return Problem(detail: exception.Message, statusCode: 400);
+            }
+            catch (InvalidOperationException exception)
+            {
+                return Problem(detail: exception.Message, statusCode: 409);
+            }
+            catch (PaymentUnavailableException exception)
+            {
+                return Problem(detail: exception.Message, statusCode: 503);
+            }
         }
 
         [HttpDelete("{id:guid}")]

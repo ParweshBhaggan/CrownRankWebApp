@@ -1,4 +1,9 @@
 using CrownRankApp.Infrastructure.Payments;
+using CrownRankApp.Application.Payments;
+using CrownRankApp.Application.Dtos.Category;
+using CrownRankApp.Application.Dtos.SocialMedia;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
 using System.Net;
 using System.Net.Http.Json;
 using CrownRankApp.API;
@@ -15,6 +20,7 @@ static class ApiChecks
 {
     public static async Task Run(DbContextOptions<ApplicationDbContext> options)
     {
+        var gateway = new PaymentChecks.FakeGateway(TimeProvider.System);
         using var factory = new WebApplicationFactory<CrownRankApp.API.Program>().WithWebHostBuilder(builder =>
             {
                 builder.UseContentRoot(Path.Combine(Directory.GetCurrentDirectory(), "CrownRankApp.API"));
@@ -30,6 +36,8 @@ static class ApiChecks
                         }));
                 builder.ConfigureServices(services =>
                     {
+                        services.RemoveAll<IPaymentGateway>();
+                        services.AddSingleton<IPaymentGateway>(gateway);
                         services.RemoveAll<StripeSettings>();
                         services.AddSingleton(new StripeSettings
                             {
@@ -65,7 +73,7 @@ static class ApiChecks
             {
                 score = 100
             });
-        Check(removedCreate.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.MethodNotAllowed, "Direct public entry creation is unavailable");
+        Check(removedCreate.StatusCode == HttpStatusCode.BadRequest, "Entry creation requires a payment reference and valid form");
         var removedBoost = await client.PostAsJsonAsync($"/api/Entry/{Guid.NewGuid()}/boost", new
             {
                 amount = 100
@@ -77,6 +85,52 @@ static class ApiChecks
                 amount = 9.99m
             });
         Check(invalidAmount.StatusCode == HttpStatusCode.BadRequest, "Checkout API enforces the minimum before contacting Stripe");
+        var paymentId = Guid.NewGuid();
+        await using var context = new ApplicationDbContext(options);
+        var category = await context.Categories.FirstAsync();
+        var platform = await context.SocialMediaDefaults.FirstAsync(platform => platform.Name == "Instagram");
+        using var image = new Image<Rgba32>(1, 1);
+        using var imageBytes = new MemoryStream();
+        image.SaveAsPng(imageBytes);
+        var registration = new EntryRegistrationRequest("API paid creator", $"api_{paymentId:N}",
+            "data:image/png;base64," + Convert.ToBase64String(imageBytes.ToArray()), 99999m,
+            [new CategoryDto
+            {
+                Name = category.Name
+            }], [new SocialMediaPlatformDto
+            {
+                PlatformName = platform.Name,
+                Url = "https://instagram.com/api_creator"
+            }], true);
+        var checkoutResponse = await client.PostAsJsonAsync($"/api/payments/entry-checkout/{paymentId}", new
+            {
+                name = registration.Name,
+                amount = 10.50m
+            });
+        Check(checkoutResponse.StatusCode == HttpStatusCode.OK, "Entry checkout works with only name and amount");
+        var started = await checkoutResponse.Content.ReadFromJsonAsync<CheckoutResponse>();
+        Check(started!.Id == paymentId && started.Url != null, "Entry checkout returns its Stripe URL and retry reference");
+        var beforePayment = await client.PostAsJsonAsync($"/api/Entry?paymentId={paymentId}", registration);
+        Check(beforePayment.StatusCode == HttpStatusCode.Conflict, "Public entry registration verifies payment before publishing");
+        gateway.Pay(paymentId);
+        var confirmedResponse = await client.PostAsJsonAsync($"/api/payments/{paymentId}/confirm", new
+            {
+            });
+        var confirmed = await confirmedResponse.Content.ReadFromJsonAsync<PaymentResponse>();
+        Check(confirmed is { Status: "paid", Fulfilled: false }, "API records successful payment while waiting for the form");
+        var registered = await client.PostAsJsonAsync($"/api/Entry?paymentId={paymentId}", registration);
+        var completed = await registered.Content.ReadFromJsonAsync<PaymentResponse>();
+        Check(registered.StatusCode == HttpStatusCode.OK && completed!.Fulfilled, "Entry API registers the form after verified payment without an admin key");
+        var retries = await Task.WhenAll(Enumerable.Range(0, 8).Select(_ => client.PostAsJsonAsync($"/api/Entry?paymentId={paymentId}", registration)));
+        Check(retries.All(response => response.StatusCode == HttpStatusCode.OK), "Entry registration safely handles concurrent HTTP retries");
+        Check(await context.ScoreAdditions.CountAsync(addition => addition.Id == paymentId) == 1 && gateway.Created == 1,
+            "HTTP registration retries create one score addition and no new Stripe session");
+        foreach (var response in retries)
+        {
+            response.Dispose();
+        }
+        var removedSubmission = await client.PostAsJsonAsync("/api/payments/entry-submissions", registration);
+        Check(removedSubmission.StatusCode == HttpStatusCode.NotFound, "The extra entry submission endpoint is removed");
         var unauthorized = await client.DeleteAsync($"/api/Entry/{Guid.NewGuid()}");
         Check(unauthorized.StatusCode == HttpStatusCode.Unauthorized, "Administrative mutations require credentials");
         client.DefaultRequestHeaders.Add("X-Admin-Key", "integration-admin");

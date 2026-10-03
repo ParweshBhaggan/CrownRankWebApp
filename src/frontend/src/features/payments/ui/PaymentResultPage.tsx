@@ -3,6 +3,8 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { confirmPayment, resumePayment } from '../../../shared/api/services/paymentApi'
 import type { PaymentResponse } from '../../../shared/api/models/payment'
 import { formatCurrency } from '../../../shared/format/currency'
+import { completePaidEntry, getPendingEntry } from '../../creator-entry/data/pendingEntry'
+import { PaidEntryEditor } from '../../creator-entry/ui/PaidEntryEditor'
 import { continueToCheckout } from '../application'
 
 export function PaymentResultPage({ cancelled = false, onConfirmed }: { cancelled?: boolean; onConfirmed: () => void })
@@ -23,7 +25,10 @@ export function PaymentResultPage({ cancelled = false, onConfirmed }: { cancelle
     async function refresh()
     {
       try {
-        const result = await confirmPayment(id)
+        const confirmed = await confirmPayment(id)
+        if (!active) return
+        setPayment(confirmed)
+        const result = await completePaidEntry(confirmed)
         if (!active) return
         setPayment(result)
         setError('')
@@ -64,9 +69,11 @@ export function PaymentResultPage({ cancelled = false, onConfirmed }: { cancelle
         <>
           <p>{terminal ? 'Your contribution has not been added. You can start a new submission from the leaderboard.'
             : cancelled ? 'Your checkout can still be open. Resume it to finish paying; your ranking updates only after confirmation.'
-            : 'We are checking payment and saving your contribution. You can leave this page; confirmation continues in the background.'}</p>
+            : 'We are checking payment and saving your contribution. Keep this page open until your entry is saved.'}</p>
           {payment?.status === 'paid' && <p>Payment received. Your ranking update is still processing.</p>}
           {error && <p role="alert">{error}</p>}
+          {error && payment?.status === 'paid' && payment.purpose === 'entry' && getPendingEntry(id) &&
+            <PaidEntryEditor paymentId={id} onRetry={() => setRevision(value => value + 1)} />}
           {!terminal && <button className="secondary-button" onClick={() => setRevision(value => value + 1)}>Check again</button>}
           {cancelled && payment?.status === 'pending' && <button className="primary-button" disabled={busy} onClick={resume}>
             {busy ? 'Opening checkout…' : 'Resume checkout'}

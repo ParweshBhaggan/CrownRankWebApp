@@ -3,6 +3,7 @@ using CrownRankApp.Application.Payments;
 using CrownRankApp.Domain.Models;
 using CrownRankApp.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace CrownRankApp.Infrastructure.Payments;
 
@@ -14,43 +15,10 @@ public sealed class PaymentStore(ApplicationDbContext context, ProfileImageStora
             .SingleOrDefaultAsync(operation => operation.Id == id, ct);
     }
 
-    public async Task<PaymentOperation> ReserveAsync(PaymentOperation operation, EntrySubmissionRequest? entry, CancellationToken ct)
+    public async Task<PaymentOperation> ReserveAsync(PaymentOperation operation, CancellationToken ct)
     {
         await using var transaction = await context.Database.BeginTransactionAsync(ct);
-        if (entry is not null)
-        {
-            if (await context.Entries.AnyAsync(existing => existing.Username.ToLower() == entry.Username, ct))
-            {
-                throw new InvalidOperationException("This username already has a ranked entry.");
-            }
-            if (await context.Categories.Where(category => category.Id == entry.CategoryId)
-                .ExecuteUpdateAsync(setters => setters.SetProperty(category => category.Name, category => category.Name), ct) != 1)
-            {
-                throw new ArgumentException("The selected category is unavailable.");
-            }
-            var platformIds = entry.SocialProfiles.Select(profile => profile.PlatformId).ToList();
-            foreach (var platformId in platformIds.Order())
-            {
-                if (await context.SocialMediaDefaults.Where(platform => platform.Id == platformId)
-                    .ExecuteUpdateAsync(setters => setters.SetProperty(platform => platform.Name, platform => platform.Name), ct) != 1)
-                {
-                    throw new ArgumentException("A selected social platform is unavailable.");
-                }
-            }
-            var platforms = await context.SocialMediaDefaults.Where(platform => platformIds.Contains(platform.Id)).ToListAsync(ct);
-            if (platforms.Count != platformIds.Count)
-            {
-                throw new ArgumentException("A selected social platform is unavailable.");
-            }
-            foreach (var profile in entry.SocialProfiles)
-            {
-                ValidateSocialHost(platforms.Single(platform => platform.Id == profile.PlatformId).Name, profile.Url);
-            }
-            var imageUrl = await images.SaveAsync(operation.Id, entry.ImageDataUrl, ct);
-            operation.EntryJson = JsonSerializer.Serialize(new StoredEntry(entry.Name, entry.Username, entry.CategoryId,
-                    entry.SocialProfiles, imageUrl));
-        }
-        else
+        if (operation.Purpose == PaymentPurpose.Boost)
         {
             // Serialize starting boosts with deletion of the target entry.
             var locked = await context.Entries.Where(target => target.Id == operation.EntryId)
@@ -83,13 +51,96 @@ public sealed class PaymentStore(ApplicationDbContext context, ProfileImageStora
             {
                 return existing;
             }
-            if (existing is null && entry is not null)
+            throw new InvalidOperationException("This reference was already used with different checkout details.");
+        }
+    }
+
+    public async Task RegisterEntryAsync(Guid id, EntryRegistrationRequest entry, CancellationToken ct)
+    {
+        await using var transaction = await context.Database.BeginTransactionAsync(ct);
+        var savedImage = false;
+        try
+        {
+            // Lock the paid operation; profile creation and payment consumption commit together.
+            var locked = await context.PaymentOperations.Where(payment => payment.Id == id && payment.Purpose == PaymentPurpose.Entry
+                    && payment.Status == PaymentStatus.Paid && payment.FulfilledAt == null)
+                .ExecuteUpdateAsync(setters => setters.SetProperty(payment => payment.Status, PaymentStatus.Paid), ct);
+            var payment = await context.PaymentOperations.SingleAsync(payment => payment.Id == id, ct);
+            if (payment.FulfilledAt is not null)
             {
-                images.Delete(operation.Id);
+                await transaction.CommitAsync(ct);
+                return;
             }
-            if (entry is not null && await context.PaymentOperations.AnyAsync(payment => payment.ReservedUsername == entry.Username, ct))
+            if (locked == 0)
             {
-                throw new InvalidOperationException("This username has an active checkout. Resume it or wait for it to expire.");
+                throw new InvalidOperationException("A verified entry payment is required.");
+            }
+            if (payment.EntryJson is null)
+            {
+                if (await context.Entries.AnyAsync(existing => existing.Username.ToLower() == entry.Username, ct))
+                {
+                    throw new InvalidOperationException("This username is taken. Choose another username for your paid entry.");
+                }
+                var categoryNames = entry.Categories.Select(category => category.Name.Trim()).Distinct().ToList();
+                var categories = await context.Categories.Where(category => categoryNames.Contains(category.Name)).OrderBy(category => category.Id).ToListAsync(ct);
+                if (categories.Count != categoryNames.Count)
+                {
+                    throw new ArgumentException("A selected category is unavailable. Choose another category for your paid entry.");
+                }
+                foreach (var category in categories)
+                {
+                    if (await context.Categories.Where(value => value.Id == category.Id)
+                        .ExecuteUpdateAsync(setters => setters.SetProperty(value => value.Name, value => value.Name), ct) != 1)
+                    {
+                        throw new ArgumentException("A selected category is unavailable.");
+                    }
+                }
+                var platformNames = entry.SocialMediaPlatforms.Select(profile => profile.PlatformName.Trim()).ToList();
+                var platforms = await context.SocialMediaDefaults.Where(platform => platformNames.Contains(platform.Name)).OrderBy(platform => platform.Id).ToListAsync(ct);
+                if (platforms.Count != platformNames.Count)
+                {
+                    throw new ArgumentException("A selected social platform is unavailable.");
+                }
+                foreach (var platform in platforms)
+                {
+                    if (await context.SocialMediaDefaults.Where(value => value.Id == platform.Id)
+                        .ExecuteUpdateAsync(setters => setters.SetProperty(value => value.Name, value => value.Name), ct) != 1)
+                    {
+                        throw new ArgumentException("A selected social platform is unavailable.");
+                    }
+                }
+                var profiles = new List<SocialProfileRequest>();
+                foreach (var profile in entry.SocialMediaPlatforms)
+                {
+                    var platform = platforms.Single(platform => platform.Name == profile.PlatformName.Trim());
+                    ValidateSocialHost(platform.Name, profile.Url);
+                    profiles.Add(new SocialProfileRequest(platform.Id, profile.Url));
+                }
+                var imageUrl = await images.SaveAsync(id, entry.ImgUrl, ct);
+                savedImage = true;
+                payment.EntryJson = JsonSerializer.Serialize(new StoredEntry(entry.Name, entry.Username, categories[0].Id, profiles, imageUrl, categories.Select(category => category.Id).ToList()));
+                payment.ReservedUsername = entry.Username;
+                payment.AgreementsAcceptedAt = clock.GetUtcNow().UtcDateTime;
+                await context.SaveChangesAsync(ct);
+            }
+            await FulfillCoreAsync(id, ct);
+            await transaction.CommitAsync(ct);
+            context.ChangeTracker.Clear();
+        }
+        catch (Exception exception)
+        {
+            // Remove an uncommitted image while the operation is still locked against another retry.
+            if (savedImage)
+            {
+                images.Delete(id);
+            }
+            await transaction.RollbackAsync(ct);
+            context.ChangeTracker.Clear();
+            if (exception is DbUpdateException { InnerException: PostgresException databaseError }
+                && databaseError.SqlState == PostgresErrorCodes.UniqueViolation
+                && databaseError.ConstraintName is "IX_Entries_Username" or "IX_PaymentOperations_ReservedUsername")
+            {
+                throw new InvalidOperationException("This username is taken. Choose another username for your paid entry.", exception);
             }
             throw;
         }
@@ -141,21 +192,38 @@ public sealed class PaymentStore(ApplicationDbContext context, ProfileImageStora
             .ExecuteUpdateAsync(setters => setters.SetProperty(operation => operation.Status, PaymentStatus.Paid)
                 .SetProperty(operation => operation.PaidAt, paidAt)
                 .SetProperty(operation => operation.PaymentIntentId, checkout.PaymentIntentId), ct);
+        await FulfillAsync(checkout.OperationId, ct);
+    }
+
+    private async Task FulfillAsync(Guid id, CancellationToken ct)
+    {
         await using var transaction = await context.Database.BeginTransactionAsync(ct);
-        var claimed = await context.PaymentOperations.Where(operation => operation.Id == checkout.OperationId && operation.FulfilledAt == null)
+        await FulfillCoreAsync(id, ct);
+        await transaction.CommitAsync(ct);
+        context.ChangeTracker.Clear();
+    }
+
+    private async Task FulfillCoreAsync(Guid id, CancellationToken ct)
+    {
+        var claimed = await context.PaymentOperations.Where(operation => operation.Id == id && operation.Status == PaymentStatus.Paid && operation.FulfilledAt == null
+                && (operation.Purpose == PaymentPurpose.Boost || operation.EntryJson != null))
             .ExecuteUpdateAsync(setters => setters.SetProperty(operation => operation.FulfilledAt, clock.GetUtcNow().UtcDateTime), ct);
         if (claimed == 0)
         {
-            await transaction.CommitAsync(ct);
             return;
         }
-        var payment = await context.PaymentOperations.SingleAsync(operation => operation.Id == checkout.OperationId, ct);
+        var payment = await context.PaymentOperations.SingleAsync(operation => operation.Id == id, ct);
         var timestamp = payment.PaidAt!.Value;
         Guid entryId;
         if (payment.Purpose == PaymentPurpose.Entry)
         {
             var details = JsonSerializer.Deserialize<StoredEntry>(payment.EntryJson!)!;
-            var category = await context.Categories.SingleAsync(category => category.Id == details.CategoryId, ct);
+            var categoryIds = details.CategoryIds ?? [details.CategoryId];
+            var categories = await context.Categories.Where(category => categoryIds.Contains(category.Id)).ToListAsync(ct);
+            if (categories.Count != categoryIds.Count)
+            {
+                throw new InvalidOperationException("A paid entry category is unavailable.");
+            }
             var entry = new Entry(payment.Id)
             {
                 Name = details.Name,
@@ -163,7 +231,7 @@ public sealed class PaymentStore(ApplicationDbContext context, ProfileImageStora
                 ImgUrl = details.ImageUrl,
                 Score = payment.Amount,
                 CreatedDate = timestamp,
-                Categories = [category]
+                Categories = categories
             };
             foreach (var profile in details.SocialProfiles)
             {
@@ -200,8 +268,6 @@ public sealed class PaymentStore(ApplicationDbContext context, ProfileImageStora
         payment.EntryId = entryId;
         payment.ReservedUsername = null;
         await context.SaveChangesAsync(ct);
-        await transaction.CommitAsync(ct);
-        context.ChangeTracker.Clear();
     }
 
     public Task ExpireUncreatedAsync(Guid id, CancellationToken ct)
@@ -224,7 +290,8 @@ public sealed class PaymentStore(ApplicationDbContext context, ProfileImageStora
                 .ExecuteUpdateAsync(setters => setters.SetProperty(payment => payment.EntryJson, (string?)null), ct);
         }
         var pending = await context.PaymentOperations.AsNoTracking().Where(operation => operation.FulfilledAt == null
-                && (operation.Status == PaymentStatus.Pending || operation.Status == PaymentStatus.Processing || operation.Status == PaymentStatus.Paid))
+                && (operation.Status == PaymentStatus.Pending || operation.Status == PaymentStatus.Processing
+                || (operation.Status == PaymentStatus.Paid && (operation.Purpose == PaymentPurpose.Boost || operation.EntryJson != null))))
             .OrderBy(operation => operation.LastCheckedAt ?? operation.CreatedDate).Take(100).ToListAsync(ct);
         var ids = pending.Select(operation => operation.Id).ToList();
         await context.PaymentOperations.Where(operation => ids.Contains(operation.Id))
@@ -234,16 +301,51 @@ public sealed class PaymentStore(ApplicationDbContext context, ProfileImageStora
 
     private static void ValidateSocialHost(string platform, string url)
     {
-        var allowed = platform.ToLowerInvariant() switch
+        string[] allowed;
+        switch (platform.ToLowerInvariant())
         {
-        "instagram" => new[]
-        {
-            "instagram.com"
-        }, "tiktok" => ["tiktok.com"],
-        "youtube" => ["youtube.com", "youtu.be"], "onlyfans" => ["onlyfans.com"],
-        "facebook" => ["facebook.com", "fb.com"], "x" or "twitter" => ["x.com", "twitter.com"],
-        "twitch" => ["twitch.tv"], _ => []
-        };
+                case "instagram":
+                {
+                    allowed = ["instagram.com"];
+                    break;
+                }
+                case "tiktok":
+                {
+                    allowed = ["tiktok.com"];
+                    break;
+                }
+                case "youtube":
+                {
+                    allowed = ["youtube.com", "youtu.be"];
+                    break;
+                }
+                case "onlyfans":
+                {
+                    allowed = ["onlyfans.com"];
+                    break;
+                }
+                case "facebook":
+                {
+                    allowed = ["facebook.com", "fb.com"];
+                    break;
+                }
+                case "x":
+                case "twitter":
+                {
+                    allowed = ["x.com", "twitter.com"];
+                    break;
+                }
+                case "twitch":
+                {
+                    allowed = ["twitch.tv"];
+                    break;
+                }
+                default:
+                {
+                    allowed = [];
+                    break;
+                }
+        }
         var host = new Uri(url).Host;
         if (allowed.Length > 0 && !allowed.Any(domain => host == domain || host.EndsWith("." + domain, StringComparison.OrdinalIgnoreCase)))
         {
@@ -251,5 +353,5 @@ public sealed class PaymentStore(ApplicationDbContext context, ProfileImageStora
         }
     }
 
-    private sealed record StoredEntry(string Name, string Username, Guid CategoryId, List<SocialProfileRequest> SocialProfiles, string ImageUrl);
+    private sealed record StoredEntry(string Name, string Username, Guid CategoryId, List<SocialProfileRequest> SocialProfiles, string ImageUrl, List<Guid>? CategoryIds = null);
 }

@@ -27,7 +27,7 @@ Vite proxies `/api` to `http://localhost:5169`. For a direct API connection, set
 ## Current flow
 
 - Categories and social platform options come from the backend, including newly added options.
-- Entry submissions and boosts start Stripe Checkout through `/api/payments`. Only backend-verified paid operations create entries or award scores.
+- Entry checkout sends only name and amount to `/api/payments`. The form is retained in the browser across Stripe navigation; after verified payment, `postEntry` registers it through `/api/Entry?paymentId=...`. Boosts award scores only after backend payment verification.
 - Payment limits are configurable in API `appsettings.json`: USD, $10 minimum, $10,000 maximum by default. The frontend reads these settings from the API.
 - See [Stripe setup and payment architecture](docs/stripe-payments.md) for configuration, migration, webhook testing, and recovery behavior.
 - Global rankings sort by score descending, then `UpdatedDate ?? CreatedDate` ascending, then ID. Equal scores therefore prefer the entry that reached its score first. The frontend preserves this order.
@@ -41,8 +41,9 @@ Vite proxies `/api` to `http://localhost:5169`. For a direct API connection, set
 | GET | `/api/Category` | All categories with IDs, names, descriptions |
 | GET | `/api/SocialMediaDefault` | All social platform IDs and names |
 | GET | `/api/Entry` | Entries with decimal scores, categories, social profiles, and dates |
-| POST | `/api/Entry` | Save an entry directly |
-| POST | `/api/Entry/{id}/boost` | Add a positive amount to the score |
+| POST | `/api/payments/entry-checkout/{referenceId}` | Start Checkout with `{ name, amount }` |
+| POST | `/api/Entry?paymentId={referenceId}` | Register the existing form after verified payment |
+| POST | `/api/payments/entries/{id}/boost-checkout/{referenceId}` | Start a boost Checkout with `{ name, amount }` |
 | GET | `/api/Entry/daily?date=YYYY-MM-DD` | UTC daily score ranking; defaults to today |
 
 Example submission:
@@ -54,15 +55,16 @@ Example submission:
   "imgUrl": "data:image/webp;base64,...",
   "score": 12.5,
   "categories": [{ "name": "Technology", "description": "" }],
-  "socialMediaPlatforms": [{ "platformName": "Instagram", "url": "https://instagram.com/ada" }]
+  "socialMediaPlatforms": [{ "platformName": "Instagram", "url": "https://instagram.com/ada" }],
+  "acceptedAgreements": true
 }
 ```
 
-The current API accepts `imgUrl`, not a multipart upload. The frontend resizes uploaded images to fit within 300×250, preserves their aspect ratio, and stores the resulting WebP data URL in `imgUrl`. A dedicated server asset upload service remains future work. Frontend image inputs accept JPG, PNG, and WebP up to 5 MB.
+The current API accepts `imgUrl`, not a multipart upload. The frontend resizes uploaded images to fit within 300×250, preserves their aspect ratio, and stores the resulting WebP data URL in `imgUrl`. During paid registration, the backend validates the data URL and saves a WebP asset in `wwwroot/assets/profiles`. The server ignores the submitted score and uses the verified payment amount. Frontend image inputs accept JPG, PNG, and WebP up to 5 MB.
 
 Entry API responses use DTOs to avoid serializing circular EF navigation properties. Apply the new `AddScoreAdditions` migration with the `dotnet ef database update` command above before starting this version. Existing entry totals remain unchanged. Daily history starts with additions recorded after this migration; older entries appear in daily rankings when boosted, and their pre-migration opening totals are not invented as historical additions.
 
-Boost body example: `{ "amount": 2.5, "referenceId": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa" }`. The reference is optional for direct API use. Reusing a reference with different details returns HTTP 409. Missing entries return 404; invalid amounts return 400. Daily responses contain `entry` (including its global score), `dailyScore`, and `scoreReachedDate`.
+Boost checkout body example: `{ "name": "CrownRank creator boost", "amount": 12.5 }`. Entry and retry references are supplied in the route. Reusing a reference with different details returns HTTP 409. Invalid amounts return 400. The removed direct boost endpoint cannot update a score without payment. Daily responses contain `entry` (including its global score), `dailyScore`, and `scoreReachedDate`.
 
 ## Checks
 
@@ -81,5 +83,5 @@ npm run test:e2e
 
 CI runs PostgreSQL integration checks for migrations, opening additions, positive-only boost validation, decimal accuracy, global and daily tie ordering, historical isolation, UTC midnight boundaries, concurrent boosts, and sequential/concurrent retry deduplication. The checks create a separate disposable database and never modify the database named in the supplied connection string.
 
-Browser tests intercept API responses and verify registration, direct boost submission, leaderboard refresh, category filtering, and daily scores that differ from global totals.
+Browser tests intercept API responses and verify name/amount checkout, form retention across navigation, paid entry registration, boost confirmation, leaderboard refresh, and daily scores that differ from global totals.
 

@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-const paymentId = '019b7335-1979-4f83-b5f3-4a83e4bb1a96'
+let paymentId = '019b7335-1979-4f83-b5f3-4a83e4bb1a96'
 const boostId = '019b7335-1979-4f83-b5f3-4a83e4bb1a97'
 test('entry and boost checkout update rankings only after confirmed payment', async ({ page }) => {
   const entries = [{
@@ -31,13 +31,23 @@ test('entry and boost checkout update rankings only after confirmed payment', as
       .filter(entry => dailyScores.has(entry.id)).map(entry => ({ entry, dailyScore: dailyScores.get(entry.id), scoreReachedDate: `${today}T10:00:00Z` }))
       .sort((a, b) => b.dailyScore! - a.dailyScore!) })
     if (path === '/api/Entry' && request.method() === 'GET') return route.fulfill({ json: [...entries].sort((a,b) => b.score - a.score) })
-    if (path === '/api/payments/entry-submissions') {
-      submitted = request.postDataJSON()
-      return route.fulfill({ json: { id: paymentId, name: submitted!.name, amount: submitted!.amount } })
-    }
-    if (path === `/api/payments/${paymentId}/checkout`) {
+    if (path.startsWith('/api/payments/entry-checkout/')) {
+      paymentId = path.split('/').at(-1)!
       expect(request.postDataJSON()).toEqual({ name: 'Grace Hopper', amount: 12.5 })
       return route.fulfill({ json: { id: paymentId, url: 'https://checkout.stripe.com/entry', status: 'pending' } })
+    }
+    if (path === '/api/Entry' && request.method() === 'POST') {
+      expect(new URL(request.url()).searchParams.get('paymentId')).toBe(paymentId)
+      expect(confirmed).toBe(true)
+      submitted = request.postDataJSON()
+      if (!entered) {
+        entered = true
+        entries.push({ id: paymentId, name: submitted!.name as string, username: submitted!.username as string,
+          score: 12.5, imgUrl: '/favicon.svg', createdDate: `${today}T11:00:00Z`,
+          categories: [{ name: 'Science' }], socialMediaPlatforms: [{ platformName: 'Facebook', url: 'https://facebook.com/grace' }] })
+        dailyScores.set(paymentId, 12.5)
+      }
+      return route.fulfill({ json: { id: paymentId, status: 'paid', fulfilled: true, entryId: paymentId, amount: 12.5, currency: 'usd', purpose: 'entry' } })
     }
     if (path.startsWith(`/api/payments/entries/${paymentId}/boost-checkout/`)) {
       expect(request.postDataJSON()).toEqual({ name: 'CrownRank creator boost', amount: 10.5 })
@@ -46,20 +56,13 @@ test('entry and boost checkout update rankings only after confirmed payment', as
     }
     if (path.endsWith('/confirm')) {
       const boosting = path.includes(boostId)
-      if (confirmed && !entered) {
-        entered = true
-        entries.push({ id: paymentId, name: submitted!.name as string, username: submitted!.username as string,
-          score: submitted!.amount as number, imgUrl: '/favicon.svg', createdDate: `${today}T11:00:00Z`,
-          categories: [{ name: 'Science' }], socialMediaPlatforms: [{ platformName: 'Facebook', url: 'https://facebook.com/grace' }] })
-        dailyScores.set(paymentId, submitted!.amount as number)
-      }
       if (confirmed && boosting && !boosted) {
         boosted = true
         entries.find(entry => entry.id === paymentId)!.score += 10.5
         dailyScores.set(paymentId, 23)
       }
       return route.fulfill({ json: { id: boosting ? boostId : paymentId, status: confirmed ? 'paid' : 'pending',
-        fulfilled: confirmed, entryId: confirmed ? paymentId : null, amount: boosting ? 10.5 : 12.5, currency: 'usd' } })
+        fulfilled: boosting ? boosted : entered, entryId: (boosting ? boosted : entered) ? paymentId : null, amount: boosting ? 10.5 : 12.5, currency: 'usd', purpose: boosting ? 'boost' : 'entry' } })
     }
     throw new Error(`Unexpected API request: ${request.method()} ${path}`)
   })
@@ -78,9 +81,7 @@ test('entry and boost checkout update rankings only after confirmed payment', as
   await page.getByLabel('Choose your amount').fill('12.50')
   await page.getByRole('button', { name: /Continue to payment.*\$12.50/ }).click()
   await expect(page).toHaveURL('https://checkout.stripe.com/entry')
-  expect(submitted).toMatchObject({ amount: 12.5, categoryId: 'science-id', acceptedAgreements: true,
-    socialProfiles: [{ platformId: 'facebook-id', url: 'https://facebook.com/grace' }] })
-  expect(submitted?.imageDataUrl).toMatch(/^data:image\/webp;base64,/)
+  expect(submitted).toBeUndefined()
   expect(entries).toHaveLength(1)
   await page.goto(`/payment/success?payment_id=${paymentId}`)
   await expect(page.getByRole('heading', { name: /Confirming your payment/ })).toBeVisible()
@@ -88,6 +89,10 @@ test('entry and boost checkout update rankings only after confirmed payment', as
   confirmed = true
   await page.getByRole('button', { name: 'Check again' }).click()
   await expect(page.getByRole('heading', { name: 'Payment confirmed' })).toBeVisible()
+  expect(submitted).toMatchObject({ name: 'Grace Hopper', username: 'grace', categories: [{ name: 'Science', description: '' }], acceptedAgreements: true, socialMediaPlatforms: [{ platformName: 'Facebook', url: 'https://facebook.com/grace' }] })
+  expect(submitted?.imgUrl).toMatch(/^data:image\/webp;base64,/)
+  expect(submitted).not.toHaveProperty('amount')
+  expect(submitted?.score).toBe(12.5)
   await page.getByRole('link', { name: 'View creator' }).click()
   await expect(page.getByRole('heading', { name: 'Grace Hopper' })).toBeVisible()
   await page.getByRole('button', { name: 'Boost this creator' }).click()

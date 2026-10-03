@@ -1,5 +1,5 @@
-// The current API accepts an image URL rather than a multipart upload.
-// Persist a small, resized data URL until an asset upload service is available.
+// Resize the form image before retaining it across the Stripe redirect.
+// The backend validates and saves it as an asset during paid entry registration.
 export async function profileImageDataUrl(file: File): Promise<string>
 {
   const url = URL.createObjectURL(file)
@@ -19,3 +19,4 @@ export async function profileImageDataUrl(file: File): Promise<string>
     URL.revokeObjectURL(url)
   }
 }
+
