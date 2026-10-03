@@ -1,4 +1,4 @@
-import { apiRequest } from './httpClient'
+import { apiRequest, testApiRequest } from './httpClient'
 
 // Options can supply headers, credentials, or a cancellation signal.
 // Each helper controls its own HTTP method and serialized body.
@@ -24,11 +24,28 @@ export function apiDelete<T = void>(endpoint: string, options?: ApiRequestOption
   return apiRequest<T>(endpoint, { ...options, method: 'DELETE' })
 }
 
+export function testApiPost<T = void>(endpoint: string, body: unknown, options?: ApiRequestOptions): Promise<T>
+{
+  return sendTestJson<T>('POST', endpoint, body, options)
+}
+
 function sendJson<T>(method: string, endpoint: string, body: unknown, options?: ApiRequestOptions): Promise<T>
 {
   const headers = { 'Content-Type': 'application/json', ...Object.fromEntries(new Headers(options?.headers)) }
 
   return apiRequest<T>(endpoint, {
+    ...options,
+    method,
+    headers,
+    body: JSON.stringify(body),
+  })
+}
+
+function sendTestJson<T>(method: string, endpoint: string, body: unknown, options?: ApiRequestOptions): Promise<T>
+{
+  const headers = { 'Content-Type': 'application/json', ...Object.fromEntries(new Headers(options?.headers)) }
+
+  return testApiRequest<T>(endpoint, {
     ...options,
     method,
     headers,
