@@ -126,6 +126,7 @@ try
         await Service(context).DeleteAsync(boundary);
         Check(!await context.ScoreAdditions.AnyAsync(row => row.EntryId == boundary), "Deleting an entry cascades its score additions");
     }
+    await PaymentChecks.Run(options, clock);
     Console.WriteLine("All PostgreSQL integration checks passed.");
 }
 finally
@@ -140,3 +141,4 @@ sealed class TestClock(DateTime now) : TimeProvider
     public DateTime Now { get; set; } = now;
     public override DateTimeOffset GetUtcNow() => new(Now);
 }
+

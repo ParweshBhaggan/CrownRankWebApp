@@ -1,3 +1,5 @@
+import { getPaymentSettings } from "../api/services/paymentApi"
+import { configurePaymentSettings, defaultPaymentSettings } from "../format/currency"
 import type { ApiCategory } from '../api/models/category'
 import type { ApiSocialMediaDefault } from '../api/models/socialMediaDefault'
 import { getCategories } from '../api/services/categoryApi'
@@ -13,18 +15,24 @@ export function LookupProvider({ children }: { children: ReactNode })
   const [state, setState] = useState({
     categories: [] as readonly ApiCategory[],
     platforms: [] as readonly ApiSocialMediaDefault[],
+    payments: defaultPaymentSettings,
     loading: true,
     error: '',
   })
   useEffect(
     () =>
       startReadRequest(
-        () => Promise.all([getCategories(), getSocialMediaDefaults()]),
-        ([categories, platforms]) => setState({ categories, platforms, loading: false, error: '' }),
+        () => Promise.all([getCategories(), getSocialMediaDefaults(), getPaymentSettings()]),
+        ([categories, platforms, payments]) =>
+        {
+          configurePaymentSettings(payments)
+          setState({ categories, platforms, payments, loading: false, error: '' })
+        },
         (error) =>
           setState({
             categories: [],
             platforms: [],
+            payments: defaultPaymentSettings,
             loading: false,
             error: error instanceof Error ? error.message : 'Could not load entry options.',
           }),
@@ -37,3 +45,4 @@ export function LookupProvider({ children }: { children: ReactNode })
     </LookupContext.Provider>
   )
 }
+

@@ -2,10 +2,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { apiRequest, resolveApiAsset } from '../../src/shared/api/httpClient'
 import { createEntry } from '../../src/features/creator-entry/data/createEntry'
 import { ApiLeaderboardRepository } from '../../src/features/leaderboard/data/ApiLeaderboardRepository'
-import { ScoreBoostGateway } from '../../src/features/payments/data/ScoreBoostGateway'
+import { StripeCheckoutGateway } from '../../src/features/payments/data/StripeCheckoutGateway'
 import type { RankingEntryDraft } from '../../src/features/creator-entry/domain/rankingEntry'
 
 vi.mock('../../src/features/creator-entry/data/profileImage', () => ({ profileImageDataUrl: vi.fn(async () => 'data:image/webp;base64,test') }))
+
+vi.mock('../../src/shared/api/redirect', () => ({ redirectToUrl: vi.fn() }))
+import { redirectToUrl } from '../../src/shared/api/redirect'
 
 const originalFetch = globalThis.fetch
 afterEach(() => { globalThis.fetch = originalFetch })
@@ -39,21 +42,22 @@ describe('frontend API adapters', () => {
       requests.push({ url, init })
       if (url === '/api/Category') return Response.json([{ id: 'science-id', name: 'New science category' }])
       if (url === '/api/SocialMediaDefault') return Response.json([{ id: 'social-id', name: 'New platform' }])
-      return Response.json({ id: 'entry-1' }, { status: 201 })
+      return Response.json({ id: 'payment-1', url: 'https://checkout.stripe.com/test', status: 'pending' })
     }
     const draft = {
-      name: ' Ada Lovelace ', username: ' ada ', category: 'science-id', contribution: 12.5,
+      acceptedAgreements: true, name: ' Ada Lovelace ', username: ' ada ', category: 'science-id', contribution: 12.5,
       socialLinks: [{ id: 'ui-only', platform: 'New platform', url: ' https://example.com/ada ' }],
       profileImage: new File(['image'], 'profile.png', { type: 'image/png' }),
     } satisfies RankingEntryDraft
     await createEntry(draft, 'ui-reference')
-    expect(requests.map(request => request.url)).toEqual(['/api/Category', '/api/SocialMediaDefault', '/api/Entry'])
+    expect(requests.map(request => request.url)).toEqual(['/api/Category', '/api/SocialMediaDefault', '/api/payments/entry-checkout'])
     expect(requests[2].init?.headers).toEqual({ 'Content-Type': 'application/json' })
     expect(JSON.parse(String(requests[2].init?.body))).toEqual({
-      name: 'Ada Lovelace', username: 'ada', imgUrl: 'data:image/webp;base64,test', score: 12.5,
-      categories: [{ name: 'New science category', description: '' }],
-      socialMediaPlatforms: [{ platformName: 'New platform', url: 'https://example.com/ada' }],
+      referenceId: 'ui-reference', name: 'Ada Lovelace', username: 'ada', imageDataUrl: 'data:image/webp;base64,test', amount: 12.5,
+      categoryId: 'science-id', acceptedAgreements: true,
+      socialProfiles: [{ platformId: 'social-id', url: 'https://example.com/ada' }],
     })
+    expect(redirectToUrl).toHaveBeenCalledWith('https://checkout.stripe.com/test')
   })
 
   it('maps entries including multiple categories and preserves backend ranking order', async () => {
@@ -89,12 +93,13 @@ describe('frontend API adapters', () => {
     expect(daily[0]).toMatchObject({ totalContributed: 2.5, dailyContributed: 2.5, scoreReachedAt: '2026-09-30T12:00:00Z' })
   })
 
-  it('boosts the selected entry with a decimal amount and a stable retry reference', async () => {
-    globalThis.fetch = vi.fn(async () => Response.json({ score: 12.5 }))
-    const request = { referenceId: 'ref', creatorId: 'entry', purpose: 'creator-boost', amount: 2.5, currency: 'EUR' } as const
-    await expect(new ScoreBoostGateway().createCheckout(request)).resolves.toEqual({ id: 'ref', confirmed: true })
-    expect(globalThis.fetch).toHaveBeenCalledWith('/api/Entry/entry/boost', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ amount: 2.5, referenceId: 'ref' }),
+  it('creates a checkout without directly changing the score', async () => {
+    const session = { id: 'payment', url: 'https://checkout.stripe.com/test', status: 'pending' }
+    globalThis.fetch = vi.fn(async () => Response.json(session))
+    const request = { referenceId: 'ref', creatorId: 'entry', amount: 12.5 }
+    await expect(new StripeCheckoutGateway().createCheckout(request)).resolves.toEqual(session)
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/payments/boost-checkout', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ referenceId: 'ref', entryId: 'entry', amount: 12.5 }),
     })
   })
 })

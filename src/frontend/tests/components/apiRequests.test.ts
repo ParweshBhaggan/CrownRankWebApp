@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { apiDelete, apiGet, apiPost, apiPut } from '../../src/shared/api/apiRequest'
 import { redirectToUrl } from '../../src/shared/api/redirect'
-import { boost_entry_endpoint, daily_entry_endpoint } from '../../src/shared/api/endpoints/entryEndpoints'
+import { daily_entry_endpoint } from '../../src/shared/api/endpoints/entryEndpoints'
 import { get_by_name_category_endpoint } from '../../src/shared/api/endpoints/categoryEndpoints'
 
 afterEach(() => vi.unstubAllGlobals())
@@ -59,8 +59,8 @@ describe('shared API requests', () => {
   })
 
   it('encodes endpoint path and query values', () => {
-    expect(boost_entry_endpoint('id/with space')).toBe('/api/Entry/id%2Fwith%20space/boost')
     expect(daily_entry_endpoint('2026-10-03&extra=1')).toBe('/api/Entry/daily?date=2026-10-03%26extra%3D1')
     expect(get_by_name_category_endpoint('Science / Tech')).toBe('/api/Category/name/Science%20%2F%20Tech')
   })
 })
+

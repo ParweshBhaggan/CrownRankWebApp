@@ -36,39 +36,6 @@ namespace CrownRankApp.API.Controllers
             return Ok(EntryResponseDto.FromEntry(entry));
         }
 
-        [HttpPost]
-        [EndpointSummary("Add a new entry")]
-        [EndpointDescription("Adds a new entry to the system.")]
-        [ProducesResponseType(typeof(EntryResponseDto), StatusCodes.Status201Created)]
-        public async Task<ActionResult<EntryResponseDto>> AddEntry([FromBody] EntryResponseDto dto)
-        {
-            try
-            {
-                var entry = await service.CreateAsync(dto);
-                return CreatedAtAction(nameof(GetEntryById), new { id = entry.Id }, EntryResponseDto.FromEntry(entry));
-            }
-            catch (ArgumentException exception) { return BadRequest(new { error = exception.Message }); }
-            catch (InvalidOperationException exception) { return Conflict(new { error = exception.Message }); }
-        }
-
-        [HttpPost("{id:guid}/boost")]
-        [EndpointSummary("Add a positive amount to an entry score")]
-        [ProducesResponseType(typeof(EntryResponseDto), StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(StatusCodes.Status404NotFound)]
-        [ProducesResponseType(StatusCodes.Status409Conflict)]
-        public async Task<ActionResult<EntryResponseDto>> BoostScore(Guid id, [FromBody] BoostScoreDto dto)
-        {
-            try
-            {
-                var entry = await service.BoostScoreAsync(id, dto.Amount, dto.ReferenceId);
-                if (entry == null) return NotFound();
-                return Ok(EntryResponseDto.FromEntry(entry));
-            }
-            catch (ArgumentException exception) { return BadRequest(new { error = exception.Message }); }
-            catch (InvalidOperationException exception) { return Conflict(new { error = exception.Message }); }
-        }
-
         [HttpGet("daily")]
         [EndpointSummary("Get a daily ranking by UTC date")]
         [ProducesResponseType(typeof(List<DailyEntryResponseDto>), StatusCodes.Status200OK)]
@@ -86,7 +53,9 @@ namespace CrownRankApp.API.Controllers
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<ActionResult> DeleteEntry(Guid id)
         {
-            var deleted = await service.DeleteAsync(id);
+            bool deleted;
+            try { deleted = await service.DeleteAsync(id); }
+            catch (InvalidOperationException exception) { return Conflict(new { error = exception.Message }); }
 
             if (!deleted)
             {
@@ -97,3 +66,4 @@ namespace CrownRankApp.API.Controllers
         }
     }
 }
+

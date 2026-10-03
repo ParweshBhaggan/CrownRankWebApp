@@ -5,6 +5,10 @@ import { EnterRankingDialog } from '../../src/features/creator-entry/ui/EnterRan
 import { LookupProvider } from '../../src/shared/config/LookupProvider'
 import { createEntry } from '../../src/features/creator-entry/data/createEntry'
 
+vi.mock('../../src/shared/api/services/paymentApi', () => ({
+  getPaymentSettings: vi.fn(async () => ({ currency: 'usd', minimumAmount: 10, maximumAmount: 10000, termsVersion: 'v1', privacyVersion: 'v1' })),
+}))
+
 vi.mock('../../src/shared/api/services/categoryApi', () => ({
   getCategories: vi.fn(async () => [{ id: 'category-technology', name: 'Technology' }, { id: 'category-science', name: 'Science' }]),
 }))
@@ -22,7 +26,7 @@ describe('EnterRankingDialog', () => {
     const user = userEvent.setup()
     render(<LookupProvider><EnterRankingDialog isOpen onClose={vi.fn()} onConfirmed={vi.fn()} /></LookupProvider>)
 
-    await user.click(screen.getByRole('button', { name: /submit with/i }))
+    await user.click(screen.getByRole('button', { name: /continue to payment/i }))
 
     expect(await screen.findByText(/enter a name/i)).toBeInTheDocument()
     expect(screen.getByText(/confirm the declaration/i)).toBeInTheDocument()
@@ -35,7 +39,7 @@ describe('EnterRankingDialog', () => {
     expect(screen.getByRole('option', { name: 'Facebook' })).toHaveValue('Facebook')
   })
 
-  it('submits a valid no-account entry and displays saved-entry confirmation', async () => {
+  it('submits a valid no-account entry and displays checkout navigation', async () => {
     vi.mocked(createEntry).mockResolvedValue({} as never)
     const user = userEvent.setup()
     const confirmed = vi.fn()
@@ -50,18 +54,18 @@ describe('EnterRankingDialog', () => {
     await user.upload(screen.getByLabelText('Profile image'), new File(['image'], 'profile.png', { type: 'image/png' }))
     await user.clear(screen.getByLabelText('Choose your amount'))
     await user.type(screen.getByLabelText('Choose your amount'), '12.50')
-    await user.click(screen.getByRole('button', { name: /submit with €12\.50/i }))
+    await user.click(screen.getByRole('button', { name: /continue to payment.*\$12\.50/i }))
 
     await waitFor(() => expect(createEntry).toHaveBeenCalledOnce())
     expect(vi.mocked(createEntry).mock.calls[0][0]).toMatchObject({
       name: 'Ada Lovelace', username: 'ada', contribution: 12.5,
     })
-    expect(confirmed).toHaveBeenCalledOnce()
-    expect(await screen.findByText(/you’re ready for the crown/i)).toBeInTheDocument()
-    expect(screen.getByText(/no money was charged/i)).toBeInTheDocument()
+    expect(confirmed).not.toHaveBeenCalled()
+    expect(await screen.findByText(/continue to payment\./i)).toBeInTheDocument()
+    expect(screen.getByText(/your entry will appear after payment confirmation/i)).toBeInTheDocument()
   })
 
-  it('allows editing and resubmission when a server error can be retried', async () => {
+  it('retries the same frozen submission when a server error can be retried', async () => {
     vi.mocked(createEntry).mockRejectedValueOnce(new Error('Database unavailable')).mockResolvedValueOnce({} as never)
     const user = userEvent.setup()
     render(<LookupProvider><EnterRankingDialog isOpen onClose={vi.fn()} onConfirmed={vi.fn()} /></LookupProvider>)
@@ -72,11 +76,12 @@ describe('EnterRankingDialog', () => {
     await user.type(screen.getByLabelText('Social profile URL 1'), 'https://instagram.com/ada')
     await user.click(screen.getByRole('checkbox'))
     await user.upload(screen.getByLabelText('Profile image'), new File(['image'], 'profile.png', { type: 'image/png' }))
-    await user.click(screen.getByRole('button', { name: /submit with/i }))
+    await user.click(screen.getByRole('button', { name: /continue to payment/i }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Database unavailable')
-    await user.click(screen.getByRole('button', { name: /submit with/i }))
+    await user.click(screen.getByRole('button', { name: /continue to payment/i }))
     await waitFor(() => expect(createEntry).toHaveBeenCalledTimes(2))
     expect(vi.mocked(createEntry).mock.calls[0][1]).toBe(vi.mocked(createEntry).mock.calls[1][1])
   })
 })
+
