@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import type { Creator } from '../../leaderboard/domain/creator'
 import type { PaymentGateway } from '../domain/payment'
-import { formatCurrency, parseAmount } from '../../../shared/format/currency'
+import { formatCurrency, parseAmount, amountRange } from '../../../shared/format/currency'
+
+import { useLookups } from '../../../shared/config/useLookups'
+import { continueToCheckout } from '../application'
 
 interface Props {
   creator: Creator
@@ -11,8 +14,9 @@ interface Props {
   available?: boolean
 }
 
-export function BoostDialog({ creator, gateway, onClose, onConfirmed, available = true }: Props)
+export function BoostDialog({ creator, gateway, onClose, available = true }: Props)
 {
+  const { paymentSettings, loading, error: settingsError } = useLookups()
   const ref = useRef<HTMLDialogElement>(null)
   const reference = useRef(crypto.randomUUID())
   const submitting = useRef(false)
@@ -32,10 +36,10 @@ export function BoostDialog({ creator, gateway, onClose, onConfirmed, available 
   async function submit(event: FormEvent)
   {
     event.preventDefault()
-    if (submitting.current || !available) return
+    if (submitting.current || !available || loading || settingsError) return
     const value = submittedAmount ?? parseAmount(amount)
     if (!Number.isFinite(value)) {
-      setError('Choose €1.00–€10,000.00 with at most two decimal places.')
+      setError(`Choose ${amountRange(paymentSettings)} with at most two decimal places.`)
       return
     }
     submitting.current = true
@@ -46,13 +50,10 @@ export function BoostDialog({ creator, gateway, onClose, onConfirmed, available 
       const session = await gateway.createCheckout({
         referenceId: reference.current,
         creatorId: creator.id,
-        purpose: 'creator-boost',
         amount: value,
-        currency: 'EUR',
       })
-      if (!session.confirmed) throw new Error('The boost was not confirmed. Please retry.')
+      continueToCheckout(session)
       setReady(true)
-      onConfirmed()
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : 'Could not save your Boost. Please retry.')
     } finally {
@@ -77,8 +78,8 @@ export function BoostDialog({ creator, gateway, onClose, onConfirmed, available 
       {ready ? (
         <div className="boost-success" role="status">
           <span>✓</span>
-          <h2>Boost confirmed</h2>
-          <p>Your contribution was saved. No money was charged.</p>
+          <h2>Checkout ready</h2>
+          <p>Stripe checkout is opening. The score updates after successful payment.</p>
           <button className="primary-button" onClick={close}>
             Done
           </button>
@@ -96,12 +97,12 @@ export function BoostDialog({ creator, gateway, onClose, onConfirmed, available 
           {!available && <p role="status">Boosting is not available in the current backend yet.</p>}
           <label htmlFor="boost-amount">Boost amount</label>
           <div className="amount-input">
-            <span>€</span>
+            <span>{paymentSettings.currency.toUpperCase()}</span>
             <input
               id="boost-amount"
               type="number"
-              min="1"
-              max="10000"
+              min={paymentSettings.minimumAmount}
+              max={paymentSettings.maximumAmount}
               step="0.01"
               value={amount}
               disabled={!available || busy || submittedAmount !== undefined}
@@ -109,31 +110,32 @@ export function BoostDialog({ creator, gateway, onClose, onConfirmed, available 
             />
           </div>
           <div className="quick-amounts">
-            {[10, 25, 50, 100].map((value) => (
+            {[10, 25, 50, 100].filter(value => value >= paymentSettings.minimumAmount && value <= paymentSettings.maximumAmount).map((value) => (
               <button
                 key={value}
                 type="button"
                 disabled={!available || busy || submittedAmount !== undefined}
                 onClick={() => setAmount(String(value))}
               >
-                {'€'}
-                {value}
+                {formatCurrency(value)}
               </button>
             ))}
           </div>
+          {settingsError && <p role="alert">{settingsError}</p>}
           {error && (
             <p role="alert" className="field-error">
               {error}
             </p>
           )}
-          <button className="primary-button full" type="submit" disabled={!available || busy}>
+          <button className="primary-button full" type="submit" disabled={!available || busy || loading || Boolean(settingsError)}>
             {busy
-              ? 'Saving Boost…'
-              : `${!available ? 'Boost unavailable' : error ? 'Retry' : 'Confirm boost'} · ${formatCurrency(parseAmount(amount))}`}
+              ? 'Opening Stripe…'
+              : `${!available ? 'Boost unavailable' : error ? 'Retry' : 'Continue to payment'} · ${formatCurrency(parseAmount(amount))}`}
           </button>
-          <small className="secure-note">No account required · No money is charged</small>
+          <small className="secure-note">No account required · Secure Stripe Checkout</small>
         </form>
       )}
     </dialog>
   )
 }
+

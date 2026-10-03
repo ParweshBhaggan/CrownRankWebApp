@@ -1,4 +1,4 @@
-import { parseAmount } from '../../../shared/format/currency.ts'
+import { parseAmount, amountRange } from '../../../shared/format/currency.ts'
 import type { RankingEntryDraft, RankingEntryValidationErrors } from '../domain/rankingEntry'
 
 const usernamePattern = /^[a-zA-Z0-9._-]{2,40}$/
@@ -12,7 +12,7 @@ export function validateRankingEntry(draft: RankingEntryDraft): RankingEntryVali
     errors.username = 'Use 2–40 letters, numbers, dots, underscores, or dashes.'
   if (!draft.category) errors.category = 'Choose an available category.'
   if (!Number.isFinite(parseAmount(String(draft.contribution))))
-    errors.contribution = 'Choose $1.00–$10,000.00 with at most two decimal places.'
+    errors.contribution = `Choose ${amountRange()} with at most two decimal places.`
   const linksAreValid =
     draft.socialLinks.length > 0 &&
     draft.socialLinks.length <= 5 &&
@@ -56,3 +56,4 @@ export function validateRankingEntry(draft: RankingEntryDraft): RankingEntryVali
     errors.profileImage = 'Choose a JPG, PNG, or WebP image up to 5 MB.'
   return errors
 }
+

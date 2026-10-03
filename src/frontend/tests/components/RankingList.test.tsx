@@ -5,6 +5,10 @@ import { expect, it, vi } from 'vitest'
 import { LookupProvider } from '../../src/shared/config/LookupProvider'
 import { RankingList } from '../../src/features/leaderboard/ui/RankingList'
 
+vi.mock('../../src/shared/api/services/paymentApi', () => ({
+  getPaymentSettings: vi.fn(async () => ({ currency: 'usd', minimumAmount: 10, maximumAmount: 10000 })),
+}))
+
 vi.mock('../../src/shared/api/services/categoryApi', () => ({
   getCategories: vi.fn(async () => [{ id: 'technology-id', name: 'Technology' }]),
 }))
@@ -26,7 +30,8 @@ it('renders API rank, creator link, category, decimal score, and Boost action', 
   expect(screen.getByText('#1')).toBeInTheDocument()
   expect(screen.getByRole('link', { name: /Ada Lovelace/i })).toHaveAttribute('href', '/creators/creator-1')
   expect(await screen.findByText('Technology')).toBeInTheDocument()
-  expect(screen.getByText('€12.50')).toBeInTheDocument()
+  expect(screen.getByText('$12.50')).toBeInTheDocument()
   await user.click(screen.getByRole('button', { name: /boost/i }))
   expect(onBoost).toHaveBeenCalledWith(creator)
 })
+

@@ -13,22 +13,41 @@ var builder = new NpgsqlConnectionStringBuilder(connection);
 var databaseName = $"crownrank_test_{Guid.NewGuid():N}";
 await using var admin = new NpgsqlConnection(builder.ConnectionString);
 await admin.OpenAsync();
-await using (var command = new NpgsqlCommand($"CREATE DATABASE \"{databaseName}\"", admin)) await command.ExecuteNonQueryAsync();
+await using (var command = new NpgsqlCommand($"CREATE DATABASE \"{databaseName}\"", admin))
+{
+    await command.ExecuteNonQueryAsync();
+}
 builder.Database = databaseName;
 var options = new DbContextOptionsBuilder<ApplicationDbContext>().UseNpgsql(builder.ConnectionString).Options;
 var clock = new TestClock(new DateTime(2026, 9, 28, 10, 0, 0, DateTimeKind.Utc));
-ApplicationDbContext Context() => new(options);
-EntryServices Service(ApplicationDbContext context) => new(context, clock);
+ApplicationDbContext Context()
+{
+    return new(options);
+}
+EntryServices Service(ApplicationDbContext context)
+{
+    return new(context, clock);
+}
 
 async Task<Guid> Create(string username, decimal score)
 {
     await using var context = Context();
     return (await Service(context).CreateAsync(new EntryResponseDto
-    {
-        Name = username, Username = username, Score = score, ImgUrl = "https://example.com/profile.webp",
-        Categories = [new CategoryDto { Name = "Technology" }],
-        SocialMediaPlatforms = [new SocialMediaPlatformDto { PlatformName = "Instagram", Url = $"https://instagram.com/{username}" }]
-    })).Id;
+        {
+            Name = username,
+            Username = username,
+            Score = score,
+            ImgUrl = "https://example.com/profile.webp",
+            Categories = [new CategoryDto
+            {
+                Name = "Technology"
+            }],
+            SocialMediaPlatforms = [new SocialMediaPlatformDto
+            {
+                PlatformName = "Instagram",
+                Url = $"https://instagram.com/{username}"
+            }]
+        })).Id;
 }
 async Task<decimal> Score(Guid id)
 {
@@ -47,18 +66,31 @@ async Task<List<DailyEntryResponseDto>> Daily(int day)
 }
 void Check(bool condition, string message)
 {
-    if (!condition) throw new Exception($"FAILED: {message}");
+    if (!condition)
+    {
+        throw new Exception($"FAILED: {message}");
+    }
     Console.WriteLine($"PASS: {message}");
 }
 async Task Reject<T>(Func<Task> action, string message) where T : Exception
 {
-    try { await action(); }
-    catch (T) { Check(true, message); return; }
+    try
+    {
+        await action();
+    }
+    catch (T)
+    {
+        Check(true, message);
+        return;
+    }
     throw new Exception($"FAILED: {message}");
 }
 try
 {
-    await using (var context = Context()) await context.Database.MigrateAsync();
+    await using (var context = Context())
+    {
+        await context.Database.MigrateAsync();
+    }
     var first = await Create("first", 20m);
     clock.Now = new DateTime(2026, 9, 28, 11, 0, 0, DateTimeKind.Utc);
     var second = await Create("second", 15m);
@@ -70,23 +102,37 @@ try
     clock.Now = new DateTime(2026, 9, 29, 10, 0, 0, DateTimeKind.Utc);
     await Boost(second, 5m);
     await using (var context = Context())
+    {
         Check((await Service(context).GetAllAsync())[0].Id == first, "Equal global scores prefer the earlier score date");
+    }
     clock.Now = new DateTime(2026, 9, 29, 11, 0, 0, DateTimeKind.Utc);
     await Boost(second, 5m);
     clock.Now = new DateTime(2026, 9, 29, 12, 0, 0, DateTimeKind.Utc);
     await Boost(first, 5m);
     await using (var context = Context())
+    {
         Check((await Service(context).GetAllAsync())[0].Id == second, "Tie order uses UpdatedDate rather than original creation date");
+    }
     var yesterday = await Daily(28);
     var today = await Daily(29);
     Check(yesterday.Single(row => row.Entry.Id == first).DailyScore == 20m, "Later boosts do not change historical daily scores");
     Check(today[0].Entry.Id == second && today[0].DailyScore == 10m && today[1].DailyScore == 5m, "Daily ranking uses daily additions rather than all-time scores");
     Check(today[0].Entry.Score == 25m, "Daily response retains the entry's global score");
-    foreach (var amount in new[] { -1m, 0m, 0.001m, 10000.01m })
+    foreach (var amount in new[]
+    {
+        -1m,
+        0m,
+        0.001m,
+        10000.01m
+    })
+    {
         await Reject<ArgumentException>(() => Boost(first, amount), $"Reject boost amount {amount}");
+    }
     Check(await Score(first) == 25m, "Invalid boosts leave the score unchanged");
     await using (var context = Context())
+    {
         Check(await Service(context).BoostScoreAsync(Guid.NewGuid(), 1m) == null, "Unknown entry returns not found");
+    }
 
     var reference = Guid.NewGuid();
     await Boost(first, 0.25m, reference);
@@ -95,7 +141,9 @@ try
     await Boost(first, 0.25m, reference);
     Check(await Score(first) == 25.25m, "Retrying a boost reference does not credit it twice");
     await using (var context = Context())
+    {
         Check((await Service(context).GetByIdAsync(first))!.UpdatedDate == reachedAt, "A retry leaves the tie timestamp unchanged");
+    }
     await Reject<InvalidOperationException>(() => Boost(first, 1m, reference), "Reject reference reused with a different amount");
     await Reject<InvalidOperationException>(() => Boost(second, 0.25m, reference), "Reject reference reused for a different entry");
 
@@ -106,7 +154,9 @@ try
     await Task.WhenAll(Enumerable.Range(0, 8).Select(_ => Boost(concurrent, 2m, sharedReference)));
     Check(await Score(concurrent) == 18m, "Concurrent retries credit one boost only");
     await using (var context = Context())
+    {
         Check(await context.ScoreAdditions.Where(row => row.EntryId == concurrent).SumAsync(row => row.Amount) == 18m, "Score and history totals remain consistent");
+    }
 
     clock.Now = new DateTime(2026, 9, 29, 23, 59, 59, DateTimeKind.Utc);
     var boundary = await Create("boundary", 3m);
@@ -126,6 +176,7 @@ try
         await Service(context).DeleteAsync(boundary);
         Check(!await context.ScoreAdditions.AnyAsync(row => row.EntryId == boundary), "Deleting an entry cascades its score additions");
     }
+    await PaymentChecks.Run(options);
     Console.WriteLine("All PostgreSQL integration checks passed.");
 }
 finally
@@ -137,6 +188,14 @@ finally
 
 sealed class TestClock(DateTime now) : TimeProvider
 {
-    public DateTime Now { get; set; } = now;
-    public override DateTimeOffset GetUtcNow() => new(Now);
+    public DateTime Now
+    {
+        get;
+        set;
+    } = now;
+
+    public override DateTimeOffset GetUtcNow()
+    {
+        return new(Now);
+    }
 }
