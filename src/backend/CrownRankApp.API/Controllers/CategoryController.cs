@@ -1,4 +1,4 @@
-﻿using CrownRankApp.Application.Dtos.Category;
+using CrownRankApp.Application.Dtos.Category;
 using CrownRankApp.Application.Services.Category;
 using Microsoft.AspNetCore.Mvc;
 
@@ -57,7 +57,10 @@ namespace CrownRankApp.API.Controllers
         public async Task<ActionResult<CategoryResponseDto>> AddCategory([FromBody] CategoryDto dto)
         {
             var category = await service.CreateAsync(dto);
-            return CreatedAtAction(nameof(GetCategoryById), new { id = category.Id }, category);
+            return CreatedAtAction(nameof(GetCategoryById), new
+                {
+                    id = category.Id
+                }, category);
         }
 
         [HttpPut("{id:guid}")]
@@ -85,8 +88,17 @@ namespace CrownRankApp.API.Controllers
         public async Task<ActionResult> DeleteCategory(Guid id)
         {
             bool deleted;
-            try { deleted = await service.DeleteAsync(id); }
-            catch (InvalidOperationException exception) { return Conflict(new { error = exception.Message }); }
+            try
+            {
+                deleted = await service.DeleteAsync(id);
+            }
+            catch (InvalidOperationException exception)
+            {
+                return Conflict(new
+                    {
+                        error = exception.Message
+                    });
+            }
             if (!deleted)
             {
                 return NotFound();
@@ -96,4 +108,3 @@ namespace CrownRankApp.API.Controllers
         }
     }
 }
-

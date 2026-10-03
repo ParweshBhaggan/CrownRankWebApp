@@ -42,6 +42,7 @@ describe('frontend API adapters', () => {
       requests.push({ url, init })
       if (url === '/api/Category') return Response.json([{ id: 'science-id', name: 'New science category' }])
       if (url === '/api/SocialMediaDefault') return Response.json([{ id: 'social-id', name: 'New platform' }])
+      if (url === '/api/payments/entry-submissions') return Response.json({ id: 'payment-1', name: 'Ada Lovelace', amount: 12.5 })
       return Response.json({ id: 'payment-1', url: 'https://checkout.stripe.com/test', status: 'pending' })
     }
     const draft = {
@@ -50,13 +51,14 @@ describe('frontend API adapters', () => {
       profileImage: new File(['image'], 'profile.png', { type: 'image/png' }),
     } satisfies RankingEntryDraft
     await createEntry(draft, 'ui-reference')
-    expect(requests.map(request => request.url)).toEqual(['/api/Category', '/api/SocialMediaDefault', '/api/payments/entry-checkout'])
+    expect(requests.map(request => request.url)).toEqual(['/api/Category', '/api/SocialMediaDefault', '/api/payments/entry-submissions', '/api/payments/payment-1/checkout'])
     expect(requests[2].init?.headers).toEqual({ 'Content-Type': 'application/json' })
     expect(JSON.parse(String(requests[2].init?.body))).toEqual({
       referenceId: 'ui-reference', name: 'Ada Lovelace', username: 'ada', imageDataUrl: 'data:image/webp;base64,test', amount: 12.5,
       categoryId: 'science-id', acceptedAgreements: true,
       socialProfiles: [{ platformId: 'social-id', url: 'https://example.com/ada' }],
     })
+    expect(JSON.parse(String(requests[3].init?.body))).toEqual({ name: 'Ada Lovelace', amount: 12.5 })
     expect(redirectToUrl).toHaveBeenCalledWith('https://checkout.stripe.com/test')
   })
 
@@ -98,8 +100,8 @@ describe('frontend API adapters', () => {
     globalThis.fetch = vi.fn(async () => Response.json(session))
     const request = { referenceId: 'ref', creatorId: 'entry', amount: 12.5 }
     await expect(new StripeCheckoutGateway().createCheckout(request)).resolves.toEqual(session)
-    expect(globalThis.fetch).toHaveBeenCalledWith('/api/payments/boost-checkout', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ referenceId: 'ref', entryId: 'entry', amount: 12.5 }),
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/payments/entries/entry/boost-checkout/ref', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'CrownRank creator boost', amount: 12.5 }),
     })
   })
 })

@@ -1,4 +1,4 @@
-﻿using CrownRankApp.Domain.Models;
+using CrownRankApp.Domain.Models;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
@@ -11,7 +11,7 @@ namespace CrownRankApp.Infrastructure.Data.Seeders
         public static void Seed(ModelBuilder modelBuilder)
         {
             modelBuilder.Entity<Category>().HasData(
-                new
+                    new
                 {
                     Id = Guid.Parse("10000000-0000-0000-0000-000000000001"),
                     Name = "Streamer",
@@ -19,7 +19,7 @@ namespace CrownRankApp.Infrastructure.Data.Seeders
                     CreatedDate = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
                     UpdatedDate = (DateTime?)null
                 },
-                new
+                    new
                 {
                     Id = Guid.Parse("10000000-0000-0000-0000-000000000002"),
                     Name = "Gaming",
@@ -27,7 +27,7 @@ namespace CrownRankApp.Infrastructure.Data.Seeders
                     CreatedDate = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
                     UpdatedDate = (DateTime?)null
                 },
-                new
+                    new
                 {
                     Id = Guid.Parse("10000000-0000-0000-0000-000000000003"),
                     Name = "Influencer",
@@ -35,7 +35,7 @@ namespace CrownRankApp.Infrastructure.Data.Seeders
                     CreatedDate = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
                     UpdatedDate = (DateTime?)null
                 },
-                new
+                    new
                 {
                     Id = Guid.Parse("10000000-0000-0000-0000-000000000004"),
                     Name = "Adult Entertainment",
@@ -43,7 +43,7 @@ namespace CrownRankApp.Infrastructure.Data.Seeders
                     CreatedDate = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
                     UpdatedDate = (DateTime?)null
                 },
-                new
+                    new
                 {
                     Id = Guid.Parse("10000000-0000-0000-0000-000000000005"),
                     Name = "Beauty & Fashion",
@@ -51,7 +51,7 @@ namespace CrownRankApp.Infrastructure.Data.Seeders
                     CreatedDate = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
                     UpdatedDate = (DateTime?)null
                 },
-                new
+                    new
                 {
                     Id = Guid.Parse("10000000-0000-0000-0000-000000000006"),
                     Name = "Fitness & Wellness",
@@ -59,7 +59,7 @@ namespace CrownRankApp.Infrastructure.Data.Seeders
                     CreatedDate = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
                     UpdatedDate = (DateTime?)null
                 },
-                new
+                    new
                 {
                     Id = Guid.Parse("10000000-0000-0000-0000-000000000007"),
                     Name = "Music",
@@ -67,7 +67,7 @@ namespace CrownRankApp.Infrastructure.Data.Seeders
                     CreatedDate = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
                     UpdatedDate = (DateTime?)null
                 },
-                new
+                    new
                 {
                     Id = Guid.Parse("10000000-0000-0000-0000-000000000008"),
                     Name = "Podcasting",
@@ -75,7 +75,7 @@ namespace CrownRankApp.Infrastructure.Data.Seeders
                     CreatedDate = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
                     UpdatedDate = (DateTime?)null
                 },
-                new
+                    new
                 {
                     Id = Guid.Parse("10000000-0000-0000-0000-000000000009"),
                     Name = "Education",
@@ -83,7 +83,7 @@ namespace CrownRankApp.Infrastructure.Data.Seeders
                     CreatedDate = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
                     UpdatedDate = (DateTime?)null
                 },
-                new
+                    new
                 {
                     Id = Guid.Parse("10000000-0000-0000-0000-000000000010"),
                     Name = "Comedy",
@@ -91,7 +91,7 @@ namespace CrownRankApp.Infrastructure.Data.Seeders
                     CreatedDate = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
                     UpdatedDate = (DateTime?)null
                 },
-                new
+                    new
                 {
                     Id = Guid.Parse("10000000-0000-0000-0000-000000000011"),
                     Name = "Art & Design",
@@ -99,7 +99,7 @@ namespace CrownRankApp.Infrastructure.Data.Seeders
                     CreatedDate = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
                     UpdatedDate = (DateTime?)null
                 },
-                new
+                    new
                 {
                     Id = Guid.Parse("10000000-0000-0000-0000-000000000012"),
                     Name = "Food",
@@ -107,7 +107,7 @@ namespace CrownRankApp.Infrastructure.Data.Seeders
                     CreatedDate = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
                     UpdatedDate = (DateTime?)null
                 },
-                new
+                    new
                 {
                     Id = Guid.Parse("10000000-0000-0000-0000-000000000013"),
                     Name = "Travel",
@@ -115,7 +115,7 @@ namespace CrownRankApp.Infrastructure.Data.Seeders
                     CreatedDate = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
                     UpdatedDate = (DateTime?)null
                 },
-                new
+                    new
                 {
                     Id = Guid.Parse("10000000-0000-0000-0000-000000000014"),
                     Name = "Technology",
@@ -123,7 +123,7 @@ namespace CrownRankApp.Infrastructure.Data.Seeders
                     CreatedDate = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
                     UpdatedDate = (DateTime?)null
                 },
-                new
+                    new
                 {
                     Id = Guid.Parse("10000000-0000-0000-0000-000000000015"),
                     Name = "Business",
@@ -131,15 +131,14 @@ namespace CrownRankApp.Infrastructure.Data.Seeders
                     CreatedDate = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
                     UpdatedDate = (DateTime?)null
                 },
-                new
+                    new
                 {
                     Id = Guid.Parse("10000000-0000-0000-0000-000000000016"),
                     Name = "Other",
                     Description = "Creators who do not fit another category.",
                     CreatedDate = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
                     UpdatedDate = (DateTime?)null
-                }
-            );
+                });
         }
     }
 }

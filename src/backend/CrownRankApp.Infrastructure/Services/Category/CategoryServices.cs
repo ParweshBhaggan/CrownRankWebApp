@@ -10,24 +10,24 @@ namespace CrownRankApp.Infrastructure.Services.Category
         public async Task<List<CategoryResponseDto>> GetAllAsync()
         {
             return await context.Categories.AsNoTracking().OrderBy(c => c.Name).Select(c => new CategoryResponseDto
-            {
-                Id = c.Id,
-                Name = c.Name,
-                Description = c.Description
-            }).ToListAsync();
+                {
+                    Id = c.Id,
+                    Name = c.Name,
+                    Description = c.Description
+                }).ToListAsync();
         }
 
         public Task<CategoryResponseDto?> GetByIdAsync(Guid id)
         {
             return context.Categories.AsNoTracking().Where(c => c.Id == id).Select(c => new CategoryResponseDto
-            {
-                Id = c.Id,
-                Name = c.Name,
-                Description = c.Description
-            }).FirstOrDefaultAsync();
+                {
+                    Id = c.Id,
+                    Name = c.Name,
+                    Description = c.Description
+                }).FirstOrDefaultAsync();
         }
 
-        public async Task<Domain.Models.Category> GetByNameAsync(string name) 
+        public async Task<Domain.Models.Category> GetByNameAsync(string name)
         {
 
             return await context.Categories.AsNoTracking().Where(c => c.Name == name).FirstOrDefaultAsync();
@@ -37,7 +37,7 @@ namespace CrownRankApp.Infrastructure.Services.Category
         public async Task<CategoryResponseDto> CreateAsync(CategoryDto dto)
         {
             var exists = await context.Categories
-           .AnyAsync(x => x.Name == dto.Name);
+                .AnyAsync(x => x.Name == dto.Name);
 
             if (exists)
             {
@@ -47,7 +47,7 @@ namespace CrownRankApp.Infrastructure.Services.Category
 
             var category = new Domain.Models.Category
             {
-                
+
                 Name = dto.Name,
                 Description = dto.Description.Trim()
             };
@@ -63,6 +63,7 @@ namespace CrownRankApp.Infrastructure.Services.Category
                 Description = category.Description
             };
         }
+
         public async Task<CategoryResponseDto> UpdateAsync(Guid id, CategoryDto dto)
         {
             var category = await context.Categories.FirstOrDefaultAsync(x => x.Id == id);
@@ -76,8 +77,8 @@ namespace CrownRankApp.Infrastructure.Services.Category
 
             var nameAlreadyExists = await context.Categories
                 .AnyAsync(x =>
-                    x.Name == name &&
-                    x.Id != id);
+                x.Name == name &&
+                x.Id != id);
 
             if (nameAlreadyExists)
             {
@@ -104,14 +105,19 @@ namespace CrownRankApp.Infrastructure.Services.Category
             await using var transaction = await context.Database.BeginTransactionAsync();
             var locked = await context.Categories.Where(row => row.Id == id)
                 .ExecuteUpdateAsync(setters => setters.SetProperty(row => row.Name, row => row.Name));
-            if (locked == 0) return false;
+            if (locked == 0)
+            {
+                return false;
+            }
             if (await context.PaymentOperations.AnyAsync(payment => payment.Purpose == CrownRankApp.Domain.Models.PaymentPurpose.Entry
-                && payment.FulfilledAt == null && payment.Status != CrownRankApp.Domain.Models.PaymentStatus.Expired
-                && payment.Status != CrownRankApp.Domain.Models.PaymentStatus.Failed))
+                    && payment.FulfilledAt == null && payment.Status != CrownRankApp.Domain.Models.PaymentStatus.Expired
+                    && payment.Status != CrownRankApp.Domain.Models.PaymentStatus.Failed))
+            {
                 throw new InvalidOperationException("Lookup deletion is unavailable while an entry payment is active.");
+            }
 
             var category = await context.Categories
-            .FirstOrDefaultAsync(x => x.Id == id);
+                .FirstOrDefaultAsync(x => x.Id == id);
 
             if (category == null)
             {
@@ -126,7 +132,5 @@ namespace CrownRankApp.Infrastructure.Services.Category
             return true;
         }
 
-
     }
 }
-

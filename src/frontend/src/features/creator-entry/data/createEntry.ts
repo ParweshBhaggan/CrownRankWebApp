@@ -1,4 +1,4 @@
-import { startEntryCheckout } from '../../../shared/api/services/paymentApi'
+import { prepareEntry, startEntryCheckout } from '../../../shared/api/services/paymentApi'
 import { getCategories } from '../../../shared/api/services/categoryApi'
 import { getSocialMediaDefaults } from '../../../shared/api/services/socialMediaDefaultApi'
 import { profileImageDataUrl } from './profileImage'
@@ -18,10 +18,11 @@ export async function createEntry(draft: RankingEntryDraft, entryReference: stri
     if (!platform) throw new Error('A selected social platform is not currently available.')
     return { platformId: platform.id, url: link.url.trim() }
   })
-  const session = await startEntryCheckout({
+  const prepared = await prepareEntry({
     referenceId: entryReference, name: draft.name.trim(), username: draft.username.trim(),
     categoryId: selected.id, amount: draft.contribution, socialProfiles,
     imageDataUrl: await profileImageDataUrl(draft.profileImage), acceptedAgreements: draft.acceptedAgreements,
   })
+  const session = await startEntryCheckout(prepared.id, { name: prepared.name, amount: prepared.amount })
   continueToCheckout(session)
 }

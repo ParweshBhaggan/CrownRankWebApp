@@ -1,4 +1,4 @@
-﻿using CrownRankApp.Application.Dtos.SocialMedia;
+using CrownRankApp.Application.Dtos.SocialMedia;
 using CrownRankApp.Application.Services.SocialMedia;
 using Microsoft.AspNetCore.Mvc;
 
@@ -41,7 +41,10 @@ namespace CrownRankApp.API.Controllers
         public async Task<ActionResult<SocialMediaDefaultResponseDto>> AddSocialMediaDefault([FromBody] SocialMediaDefaultDto dto)
         {
             var platform = await service.CreateAsync(dto);
-            return CreatedAtAction(nameof(GetSocialMediaDefaultById), new { id = platform.Id }, platform);
+            return CreatedAtAction(nameof(GetSocialMediaDefaultById), new
+                {
+                    id = platform.Id
+                }, platform);
         }
 
         [HttpPut("{id:guid}")]
@@ -69,8 +72,17 @@ namespace CrownRankApp.API.Controllers
         public async Task<ActionResult> DeleteSocialMediaDefault(Guid id)
         {
             bool deleted;
-            try { deleted = await service.DeleteAsync(id); }
-            catch (InvalidOperationException exception) { return Conflict(new { error = exception.Message }); }
+            try
+            {
+                deleted = await service.DeleteAsync(id);
+            }
+            catch (InvalidOperationException exception)
+            {
+                return Conflict(new
+                    {
+                        error = exception.Message
+                    });
+            }
             if (!deleted)
             {
                 return NotFound();
@@ -80,4 +92,3 @@ namespace CrownRankApp.API.Controllers
         }
     }
 }
-

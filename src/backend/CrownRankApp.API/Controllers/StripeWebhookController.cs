@@ -18,7 +18,10 @@ public sealed class StripeWebhookController(CheckoutService checkout, ILogger<St
             await checkout.WebhookAsync(payload, Request.Headers["Stripe-Signature"].ToString(), ct);
             return Ok();
         }
-        catch (InvalidWebhookException) { return BadRequest(); }
+        catch (InvalidWebhookException)
+        {
+            return BadRequest();
+        }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
             logger.LogError(exception, "Stripe webhook could not be processed; Stripe should retry");

@@ -1,4 +1,4 @@
-﻿using CrownRankApp.Application.Dtos.SocialMedia;
+using CrownRankApp.Application.Dtos.SocialMedia;
 using CrownRankApp.Application.Services.SocialMedia;
 using CrownRankApp.Domain.Models;
 using CrownRankApp.Infrastructure.Data;
@@ -11,21 +11,20 @@ namespace CrownRankApp.Infrastructure.Services.SocialMedia
         public async Task<List<SocialMediaPlatform>> GetAllAsync()
         {
             return await context.SocialMediaPlatforms
-            .AsNoTracking()
-            .Include(p => p.Platform)
-            .OrderBy(x => x.Platform.Name)
-            .ToListAsync();
+                .AsNoTracking()
+                .Include(p => p.Platform)
+                .OrderBy(x => x.Platform.Name)
+                .ToListAsync();
         }
 
         public async Task<SocialMediaPlatform?> GetByIdAsync(Guid id)
         {
             return await context.SocialMediaPlatforms
-            .AsNoTracking()
-            .Include(p => p.Platform)
-            .Where(x => x.Id == id)
-            .FirstOrDefaultAsync();
+                .AsNoTracking()
+                .Include(p => p.Platform)
+                .Where(x => x.Id == id)
+                .FirstOrDefaultAsync();
         }
-
 
         public async Task<SocialMediaPlatform> CreateAsync(SocialMediaPlatformDto dto)
         {
@@ -49,7 +48,9 @@ namespace CrownRankApp.Infrastructure.Services.SocialMedia
         {
             var Platform = await GetByIdAsync(id);
             if (Platform == null)
+            {
                 return false;
+            }
 
             context.SocialMediaPlatforms.Remove(Platform);
             await context.SaveChangesAsync();

@@ -5,7 +5,7 @@ export interface PaymentSettings {
   termsVersion: string
   privacyVersion: string
 }
-export interface EntryCheckoutRequest {
+export interface EntrySubmissionRequest {
   referenceId: string
   amount: number
   name: string
@@ -27,4 +27,12 @@ export interface PaymentResponse {
   entryId: string | null
   amount: number
   currency: string
+}
+
+export interface CheckoutRequest {
+  name: string
+  amount: number
+}
+export interface CheckoutPreparationResponse extends CheckoutRequest {
+  id: string
 }

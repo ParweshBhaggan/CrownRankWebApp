@@ -16,9 +16,9 @@ namespace CrownRankApp.API
 
             builder.Services.AddControllers(options => options.Filters.Add<AdminApiKeyFilter>());
             builder.Services.AddCors(options => options.AddPolicy("Frontend", policy => policy
-                .WithOrigins(builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
-                    ?? ["http://localhost:5173", "https://localhost:5173"])
-                .AllowAnyHeader().AllowAnyMethod()));
+                        .WithOrigins(builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+                            ?? ["http://localhost:5173", "https://localhost:5173"])
+                        .AllowAnyHeader().AllowAnyMethod()));
             // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
             builder.Services.AddOpenApi();
 
@@ -28,12 +28,17 @@ namespace CrownRankApp.API
             builder.Services.AddHostedService<PaymentRecoveryWorker>();
             builder.Services.AddProblemDetails();
             builder.Services.AddRateLimiter(options =>
-            {
-                options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-                options.AddPolicy("payments", http => RateLimitPartition.GetFixedWindowLimiter(
-                    http.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-                    _ => new FixedWindowRateLimiterOptions { PermitLimit = 60, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
-            });
+                {
+                    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+                    options.AddPolicy("payments", http => RateLimitPartition.GetFixedWindowLimiter(
+                            http.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                            _ => new FixedWindowRateLimiterOptions
+                            {
+                                PermitLimit = 60,
+                                Window = TimeSpan.FromMinutes(1),
+                                QueueLimit = 0
+                            }));
+                });
             builder.Services.AddDatabaseService(builder.Configuration);
 
             var app = builder.Build();
@@ -53,11 +58,9 @@ namespace CrownRankApp.API
             app.UseAuthorization();
             app.UseRateLimiter();
 
-
             app.MapControllers();
 
             app.Run();
         }
     }
 }
-

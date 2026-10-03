@@ -8,7 +8,6 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
-
 namespace CrownRankApp.Infrastructure.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
@@ -17,7 +16,7 @@ namespace CrownRankApp.Infrastructure.Migrations
     {
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
-#pragma warning disable 612, 618
+            #pragma warning disable 612, 618
             modelBuilder
                 .HasAnnotation("ProductVersion", "10.0.12")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
@@ -67,112 +66,112 @@ namespace CrownRankApp.Infrastructure.Migrations
                     b.ToTable("Categories");
 
                     b.HasData(
-                        new
+                            new
                         {
                             Id = new Guid("10000000-0000-0000-0000-000000000001"),
                             CreatedDate = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             Description = "Live-streaming creators and personalities.",
                             Name = "Streamer"
                         },
-                        new
+                            new
                         {
                             Id = new Guid("10000000-0000-0000-0000-000000000002"),
                             CreatedDate = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             Description = "Gaming creators, players and esports personalities.",
                             Name = "Gaming"
                         },
-                        new
+                            new
                         {
                             Id = new Guid("10000000-0000-0000-0000-000000000003"),
                             CreatedDate = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             Description = "Lifestyle and social-media personalities.",
                             Name = "Influencer"
                         },
-                        new
+                            new
                         {
                             Id = new Guid("10000000-0000-0000-0000-000000000004"),
                             CreatedDate = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             Description = "Adult-oriented creators and performers.",
                             Name = "Adult Entertainment"
                         },
-                        new
+                            new
                         {
                             Id = new Guid("10000000-0000-0000-0000-000000000005"),
                             CreatedDate = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             Description = "Beauty, style and fashion creators.",
                             Name = "Beauty & Fashion"
                         },
-                        new
+                            new
                         {
                             Id = new Guid("10000000-0000-0000-0000-000000000006"),
                             CreatedDate = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             Description = "Fitness, health and wellness creators.",
                             Name = "Fitness & Wellness"
                         },
-                        new
+                            new
                         {
                             Id = new Guid("10000000-0000-0000-0000-000000000007"),
                             CreatedDate = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             Description = "Musicians, singers, producers and DJs.",
                             Name = "Music"
                         },
-                        new
+                            new
                         {
                             Id = new Guid("10000000-0000-0000-0000-000000000008"),
                             CreatedDate = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             Description = "Podcast hosts and audio creators.",
                             Name = "Podcasting"
                         },
-                        new
+                            new
                         {
                             Id = new Guid("10000000-0000-0000-0000-000000000009"),
                             CreatedDate = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             Description = "Educational creators and subject-matter experts.",
                             Name = "Education"
                         },
-                        new
+                            new
                         {
                             Id = new Guid("10000000-0000-0000-0000-000000000010"),
                             CreatedDate = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             Description = "Comedians and entertainment creators.",
                             Name = "Comedy"
                         },
-                        new
+                            new
                         {
                             Id = new Guid("10000000-0000-0000-0000-000000000011"),
                             CreatedDate = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             Description = "Artists, illustrators and designers.",
                             Name = "Art & Design"
                         },
-                        new
+                            new
                         {
                             Id = new Guid("10000000-0000-0000-0000-000000000012"),
                             CreatedDate = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             Description = "Food, cooking and culinary creators.",
                             Name = "Food"
                         },
-                        new
+                            new
                         {
                             Id = new Guid("10000000-0000-0000-0000-000000000013"),
                             CreatedDate = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             Description = "Travel creators and explorers.",
                             Name = "Travel"
                         },
-                        new
+                            new
                         {
                             Id = new Guid("10000000-0000-0000-0000-000000000014"),
                             CreatedDate = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             Description = "Technology creators and reviewers.",
                             Name = "Technology"
                         },
-                        new
+                            new
                         {
                             Id = new Guid("10000000-0000-0000-0000-000000000015"),
                             CreatedDate = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             Description = "Business, finance and entrepreneurship creators.",
                             Name = "Business"
                         },
-                        new
+                            new
                         {
                             Id = new Guid("10000000-0000-0000-0000-000000000016"),
                             CreatedDate = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
@@ -350,49 +349,49 @@ namespace CrownRankApp.Infrastructure.Migrations
                     b.ToTable("SocialMediaDefaults");
 
                     b.HasData(
-                        new
+                            new
                         {
                             Id = new Guid("20000000-0000-0000-0000-000000000001"),
                             CreatedDate = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             Name = "Instagram"
                         },
-                        new
+                            new
                         {
                             Id = new Guid("20000000-0000-0000-0000-000000000002"),
                             CreatedDate = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             Name = "TikTok"
                         },
-                        new
+                            new
                         {
                             Id = new Guid("20000000-0000-0000-0000-000000000003"),
                             CreatedDate = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             Name = "YouTube"
                         },
-                        new
+                            new
                         {
                             Id = new Guid("20000000-0000-0000-0000-000000000004"),
                             CreatedDate = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             Name = "OnlyFans"
                         },
-                        new
+                            new
                         {
                             Id = new Guid("20000000-0000-0000-0000-000000000005"),
                             CreatedDate = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             Name = "Facebook"
                         },
-                        new
+                            new
                         {
                             Id = new Guid("20000000-0000-0000-0000-000000000006"),
                             CreatedDate = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             Name = "X"
                         },
-                        new
+                            new
                         {
                             Id = new Guid("20000000-0000-0000-0000-000000000007"),
                             CreatedDate = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             Name = "Twitch"
                         },
-                        new
+                            new
                         {
                             Id = new Guid("20000000-0000-0000-0000-000000000008"),
                             CreatedDate = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
@@ -480,8 +479,7 @@ namespace CrownRankApp.Infrastructure.Migrations
                 {
                     b.Navigation("SocialMediaPlatforms");
                 });
-#pragma warning restore 612, 618
+            #pragma warning restore 612, 618
         }
     }
 }
-

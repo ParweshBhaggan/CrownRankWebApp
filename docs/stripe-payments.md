@@ -58,8 +58,9 @@ Put the listener's `whsec_...` value in `Stripe:WebhookSecret` and restart the A
 | Method | Route | Purpose |
 |---|---|---|
 | GET | `/api/payments/settings` | Public currency, limits, agreement versions |
-| POST | `/api/payments/entry-checkout` | Validate and reserve an entry; return Checkout URL |
-| POST | `/api/payments/boost-checkout` | Validate a target and amount; return Checkout URL |
+| POST | `/api/payments/entry-submissions` | Validate and reserve an entry profile locally; return payment ID, name, and amount |
+| POST | `/api/payments/{id}/checkout` | Accept only `{ name, amount }` matching the saved submission; return Checkout URL |
+| POST | `/api/payments/entries/{entryId}/boost-checkout/{referenceId}` | Accept only `{ name, amount }`; the target and retry reference are in the route |
 | GET | `/api/payments/{id}` | Read minimal local payment/fulfillment status |
 | POST | `/api/payments/{id}/confirm` | Retrieve Stripe state and fulfill a verified payment |
 | POST | `/api/payments/{id}/resume` | Resume the existing Checkout session or recover its result |
@@ -85,3 +86,11 @@ All other API mutations require `X-Admin-Key`, matching `Admin:ApiKey`. An empty
 Webhook handling performs a short database transaction before acknowledging processed events. On processing failure it returns 503 so Stripe can retry. Unrelated verified events are acknowledged without awarding scores. Monitor recovery and webhook error logs, especially payments marked paid with a null fulfillment timestamp.
 
 Before live use, set live credentials and `LiveMode: true`, configure the public HTTPS frontend URL, register the public HTTPS webhook with these Checkout event types, and ensure generated profile assets persist across deployments. This change does not add refund administration, automated disputes, tax calculation, or payout distribution.
+
+### Checkout payload and backend notation
+
+Both public checkout endpoints take `CheckoutRequest(string Name, decimal Amount)`. Entry creation first calls `entry-submissions` to persist the profile and reserve its username inside CrownRank. Its response supplies the ID, name, and amount for checkout. The checkout service rejects a name or amount that differs from that reservation. Boost requests use the display name `CrownRank creator boost`; the route supplies the entry ID and a stable retry reference. A retry retains its original submission reference and can reuse the saved Stripe session.
+
+The Stripe gateway takes the same two-field DTO alongside a separate server-owned context containing the operation ID, currency, and dates. It never takes an entry or payment entity. Stripe receives a single product name and amount plus the currency, internal reference, expiry, redirect URLs, and idempotency key needed for reliable confirmation. Profile images, usernames, categories, and social links stay inside CrownRank.
+
+Backend C# uses explicit method bodies, braces for control flow, four-space indentation, expanded initializers, and single-line declaration parameter lists. `.editorconfig` records these preferences. Query/expression-tree selectors still use the lambda syntax required by LINQ and EF; declaration bodies do not use expression arrows.

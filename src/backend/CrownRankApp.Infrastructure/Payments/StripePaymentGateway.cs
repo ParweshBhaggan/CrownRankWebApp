@@ -1,5 +1,4 @@
 using CrownRankApp.Application.Payments;
-using CrownRankApp.Domain.Models;
 using Stripe;
 using Stripe.Checkout;
 
@@ -7,45 +6,82 @@ namespace CrownRankApp.Infrastructure.Payments;
 
 public sealed class StripeSettings
 {
-    public string SecretKey { get; set; } = string.Empty;
-    public string WebhookSecret { get; set; } = string.Empty;
-    public string FrontendUrl { get; set; } = "http://localhost:5173";
-    public bool LiveMode { get; set; }
+    public string SecretKey
+    {
+        get;
+        set;
+    } = string.Empty;
+
+    public string WebhookSecret
+    {
+        get;
+        set;
+    } = string.Empty;
+
+    public string FrontendUrl
+    {
+        get;
+        set;
+    } = "http://localhost:5173";
+
+    public bool LiveMode
+    {
+        get;
+        set;
+    }
 }
 
 public sealed class StripePaymentGateway(StripeClient client, StripeSettings settings) : IPaymentGateway
 {
-    public async Task<VerifiedCheckout> CreateAsync(PaymentOperation operation, CancellationToken ct)
+    public async Task<VerifiedCheckout> CreateAsync(CheckoutRequest request, CheckoutContext context, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(settings.SecretKey))
+        {
             throw new PaymentUnavailableException("Stripe checkout is not configured yet.");
+        }
         var root = settings.FrontendUrl.TrimEnd('/');
-        var metadata = new Dictionary<string, string> { ["crownrank_payment_id"] = operation.Id.ToString() };
+        var metadata = new Dictionary<string, string>
+        {
+            ["crownrank_payment_id"] = context.OperationId.ToString()
+        };
         var options = new SessionCreateOptions
         {
             Mode = "payment",
-            AdaptivePricing = new SessionAdaptivePricingOptions { Enabled = false },
+            AdaptivePricing = new SessionAdaptivePricingOptions
+            {
+                Enabled = false
+            },
             PaymentMethodTypes = ["card"],
-            ClientReferenceId = operation.Id.ToString(),
+            ClientReferenceId = context.OperationId.ToString(),
             Metadata = metadata,
-            PaymentIntentData = new SessionPaymentIntentDataOptions { Metadata = metadata },
-            ExpiresAt = operation.ExpiresAt,
-            SuccessUrl = $"{root}/payment/success?payment_id={operation.Id}&session_id={{CHECKOUT_SESSION_ID}}",
-            CancelUrl = $"{root}/payment/cancel?payment_id={operation.Id}",
+            PaymentIntentData = new SessionPaymentIntentDataOptions
+            {
+                Metadata = metadata
+            },
+            ExpiresAt = context.ExpiresAt,
+            SuccessUrl = $"{root}/payment/success?payment_id={context.OperationId}&session_id={{CHECKOUT_SESSION_ID}}",
+            CancelUrl = $"{root}/payment/cancel?payment_id={context.OperationId}",
             LineItems = [new SessionLineItemOptions
             {
                 Quantity = 1,
                 PriceData = new SessionLineItemPriceDataOptions
                 {
-                    Currency = operation.Currency, UnitAmount = checked((long)(operation.Amount * 100)),
-                    ProductData = new SessionLineItemPriceDataProductDataOptions { Name = operation.Description }
+                    Currency = context.Currency,
+                    UnitAmount = checked((long)(request.Amount * 100)),
+                    ProductData = new SessionLineItemPriceDataProductDataOptions
+                    {
+                        Name = request.Name
+                    }
                 }
             }]
         };
         try
         {
             var session = await client.V1.Checkout.Sessions.CreateAsync(options,
-                new RequestOptions { IdempotencyKey = $"crownrank-checkout-{operation.Id:N}" }, ct);
+                new RequestOptions
+                {
+                    IdempotencyKey = $"crownrank-checkout-{context.OperationId:N}"
+                }, ct);
             return Map(session);
         }
         catch (StripeException exception)
@@ -54,7 +90,7 @@ public sealed class StripePaymentGateway(StripeClient client, StripeSettings set
         }
     }
 
-    public async Task<VerifiedCheckout?> FindAsync(PaymentOperation operation, CancellationToken ct)
+    public async Task<VerifiedCheckout?> FindAsync(CheckoutContext context, CancellationToken ct)
     {
         try
         {
@@ -62,13 +98,18 @@ public sealed class StripePaymentGateway(StripeClient client, StripeSettings set
             {
                 Created = new DateRangeOptions
                 {
-                    GreaterThanOrEqual = operation.CreatedDate.AddMinutes(-1), LessThanOrEqual = operation.ExpiresAt
+                    GreaterThanOrEqual = context.CreatedAt.AddMinutes(-1),
+                    LessThanOrEqual = context.ExpiresAt
                 },
                 Limit = 100
             };
             await foreach (var session in client.V1.Checkout.Sessions.ListAutoPagingAsync(options, cancellationToken: ct))
-                if (session.ClientReferenceId == operation.Id.ToString())
+            {
+                if (session.ClientReferenceId == context.OperationId.ToString())
+                {
                     return await RetrieveAsync(session.Id, ct);
+                }
+            }
             return null;
         }
         catch (StripeException exception)
@@ -82,7 +123,10 @@ public sealed class StripePaymentGateway(StripeClient client, StripeSettings set
         try
         {
             var session = await client.V1.Checkout.Sessions.GetAsync(sessionId,
-                new SessionGetOptions { Expand = ["payment_intent.latest_charge"] }, cancellationToken: ct);
+                new SessionGetOptions
+                {
+                    Expand = ["payment_intent.latest_charge"]
+                }, cancellationToken: ct);
             return Map(session);
         }
         catch (StripeException exception)
@@ -94,16 +138,36 @@ public sealed class StripePaymentGateway(StripeClient client, StripeSettings set
     public VerifiedCheckout? VerifyWebhook(string payload, string signature)
     {
         if (string.IsNullOrWhiteSpace(settings.WebhookSecret))
+        {
             throw new PaymentUnavailableException("Stripe webhooks are not configured yet.");
+        }
         Event stripeEvent;
-        try { stripeEvent = EventUtility.ConstructEvent(payload, signature, settings.WebhookSecret); }
-        catch (StripeException) { throw new InvalidWebhookException(); }
-        if (stripeEvent.Livemode != settings.LiveMode) throw new InvalidWebhookException();
+        try
+        {
+            stripeEvent = EventUtility.ConstructEvent(payload, signature, settings.WebhookSecret);
+        }
+        catch (StripeException)
+        {
+            throw new InvalidWebhookException();
+        }
+        if (stripeEvent.Livemode != settings.LiveMode)
+        {
+            throw new InvalidWebhookException();
+        }
         if (stripeEvent.Type is not ("checkout.session.completed" or "checkout.session.async_payment_succeeded"
-            or "checkout.session.async_payment_failed" or "checkout.session.expired")) return null;
-        if (stripeEvent.Data.Object is not Session session) throw new InvalidWebhookException();
+            or "checkout.session.async_payment_failed" or "checkout.session.expired"))
+        {
+            return null;
+        }
+        if (stripeEvent.Data.Object is not Session session)
+        {
+            throw new InvalidWebhookException();
+        }
         // Ignore sessions owned by other integrations on the same Stripe account.
-        if (!session.Metadata.ContainsKey("crownrank_payment_id")) return null;
+        if (!session.Metadata.ContainsKey("crownrank_payment_id"))
+        {
+            return null;
+        }
         return Map(session);
     }
 
@@ -112,7 +176,9 @@ public sealed class StripePaymentGateway(StripeClient client, StripeSettings set
         if (session.Livemode != settings.LiveMode || session.Mode != "payment"
             || !session.Metadata.TryGetValue("crownrank_payment_id", out var id)
             || !Guid.TryParse(id, out var operationId) || session.ClientReferenceId != id)
+        {
             throw new InvalidOperationException("Stripe session does not belong to this CrownRank environment.");
+        }
         return new(session.Id, operationId, session.AmountTotal ?? -1, session.Currency, session.Status,
             session.PaymentStatus == "paid", session.PaymentIntentId,
             session.PaymentStatus == "paid" ? session.PaymentIntent?.LatestCharge?.Created : null,

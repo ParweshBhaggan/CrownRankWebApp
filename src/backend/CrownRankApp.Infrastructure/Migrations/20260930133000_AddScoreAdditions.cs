@@ -1,7 +1,6 @@
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
-
 namespace CrownRankApp.Infrastructure.Migrations;
 
 public partial class AddScoreAdditions : Migration
@@ -25,7 +24,15 @@ public partial class AddScoreAdditions : Migration
                     principalTable: "Entries", principalColumn: "Id", onDelete: ReferentialAction.Cascade);
             });
         migrationBuilder.CreateIndex("IX_ScoreAdditions_EntryId", "ScoreAdditions", "EntryId");
-        migrationBuilder.CreateIndex("IX_ScoreAdditions_CreatedDate_EntryId", "ScoreAdditions", new[] { "CreatedDate", "EntryId" });
+        migrationBuilder.CreateIndex("IX_ScoreAdditions_CreatedDate_EntryId", "ScoreAdditions", new[]
+            {
+                "CreatedDate",
+                "EntryId"
+            });
     }
-    protected override void Down(MigrationBuilder migrationBuilder) => migrationBuilder.DropTable("ScoreAdditions");
+
+    protected override void Down(MigrationBuilder migrationBuilder)
+    {
+        migrationBuilder.DropTable("ScoreAdditions");
+    }
 }

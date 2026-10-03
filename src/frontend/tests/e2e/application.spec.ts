@@ -31,12 +31,16 @@ test('entry and boost checkout update rankings only after confirmed payment', as
       .filter(entry => dailyScores.has(entry.id)).map(entry => ({ entry, dailyScore: dailyScores.get(entry.id), scoreReachedDate: `${today}T10:00:00Z` }))
       .sort((a, b) => b.dailyScore! - a.dailyScore!) })
     if (path === '/api/Entry' && request.method() === 'GET') return route.fulfill({ json: [...entries].sort((a,b) => b.score - a.score) })
-    if (path === '/api/payments/entry-checkout') {
+    if (path === '/api/payments/entry-submissions') {
       submitted = request.postDataJSON()
+      return route.fulfill({ json: { id: paymentId, name: submitted!.name, amount: submitted!.amount } })
+    }
+    if (path === `/api/payments/${paymentId}/checkout`) {
+      expect(request.postDataJSON()).toEqual({ name: 'Grace Hopper', amount: 12.5 })
       return route.fulfill({ json: { id: paymentId, url: 'https://checkout.stripe.com/entry', status: 'pending' } })
     }
-    if (path === '/api/payments/boost-checkout') {
-      expect(request.postDataJSON()).toMatchObject({ entryId: paymentId, amount: 10.5 })
+    if (path.startsWith(`/api/payments/entries/${paymentId}/boost-checkout/`)) {
+      expect(request.postDataJSON()).toEqual({ name: 'CrownRank creator boost', amount: 10.5 })
       confirmed = false
       return route.fulfill({ json: { id: boostId, url: 'https://checkout.stripe.com/boost', status: 'pending' } })
     }

@@ -1,8 +1,7 @@
-﻿using System;
+using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
-
 namespace CrownRankApp.Infrastructure.Migrations
 {
     /// <inheritdoc />
@@ -66,7 +65,11 @@ namespace CrownRankApp.Infrastructure.Migrations
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_EntryCategories", x => new { x.CategoriesId, x.EntriesId });
+                    table.PrimaryKey("PK_EntryCategories", x => new
+                        {
+                            x.CategoriesId,
+                            x.EntriesId
+                        });
                     table.ForeignKey(
                         name: "FK_EntryCategories_Categories_CategoriesId",
                         column: x => x.CategoriesId,

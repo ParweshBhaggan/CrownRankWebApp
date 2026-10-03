@@ -1,4 +1,4 @@
-﻿using CrownRankApp.Application.Dtos.SocialMedia;
+using CrownRankApp.Application.Dtos.SocialMedia;
 using CrownRankApp.Application.Services.SocialMedia;
 using CrownRankApp.Domain.Models;
 using Microsoft.AspNetCore.Mvc;
@@ -42,7 +42,10 @@ namespace CrownRankApp.API.Controllers
         public async Task<ActionResult<SocialMediaPlatform>> AddSocialMediaPlatform([FromBody] SocialMediaPlatformDto dto)
         {
             var platform = await service.CreateAsync(dto);
-            return CreatedAtAction(nameof(GetSocialMediaPlatformById), new { id = platform.Id }, platform);
+            return CreatedAtAction(nameof(GetSocialMediaPlatformById), new
+                {
+                    id = platform.Id
+                }, platform);
         }
 
         [HttpDelete("{id:guid}")]

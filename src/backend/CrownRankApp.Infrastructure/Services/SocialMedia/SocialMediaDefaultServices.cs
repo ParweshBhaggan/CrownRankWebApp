@@ -11,33 +11,34 @@ namespace CrownRankApp.Infrastructure.Services.SocialMedia
         public async Task<List<SocialMediaDefaultResponseDto>> GetAllAsync()
         {
             return await context.SocialMediaDefaults
-           .AsNoTracking()
-           .OrderBy(x => x.Name)
-           .Select(x => new SocialMediaDefaultResponseDto
-           {
-               Id = x.Id,
-               Name = x.Name
-           })
-           .ToListAsync();
+                .AsNoTracking()
+                .OrderBy(x => x.Name)
+                .Select(x => new SocialMediaDefaultResponseDto
+                {
+                    Id = x.Id,
+                    Name = x.Name
+                })
+                .ToListAsync();
         }
 
         public async Task<SocialMediaDefaultResponseDto?> GetByIdAsync(Guid id)
         {
             return await context.SocialMediaDefaults
-            .AsNoTracking()
-            .Where(x => x.Id == id)
-            .Select(x => new SocialMediaDefaultResponseDto
-            {
-                Id = x.Id,
-                Name = x.Name
-            })
-            .FirstOrDefaultAsync();
+                .AsNoTracking()
+                .Where(x => x.Id == id)
+                .Select(x => new SocialMediaDefaultResponseDto
+                {
+                    Id = x.Id,
+                    Name = x.Name
+                })
+                .FirstOrDefaultAsync();
         }
+
         public async Task<SocialMediaDefaultResponseDto> CreateAsync(SocialMediaDefaultDto dto)
         {
             var name = dto.Name.Trim();
             var exists = await context.SocialMediaDefaults
-            .AnyAsync(x => x.Name == dto.Name);
+                .AnyAsync(x => x.Name == dto.Name);
 
             if (exists)
             {
@@ -48,7 +49,7 @@ namespace CrownRankApp.Infrastructure.Services.SocialMedia
             var platform = new SocialMediaDefault
             {
 
-                Name = dto.Name     
+                Name = dto.Name
             };
 
             context.SocialMediaDefaults.Add(platform);
@@ -65,7 +66,7 @@ namespace CrownRankApp.Infrastructure.Services.SocialMedia
         public async Task<SocialMediaDefaultResponseDto> UpdateAsync(Guid id, SocialMediaDefaultDto dto)
         {
             var platform = await context.SocialMediaDefaults
-             .FirstOrDefaultAsync(x => x.Id == id);
+                .FirstOrDefaultAsync(x => x.Id == id);
 
             if (platform == null)
             {
@@ -80,8 +81,8 @@ namespace CrownRankApp.Infrastructure.Services.SocialMedia
 
             var exists = await context.SocialMediaDefaults
                 .AnyAsync(x =>
-                    x.Name == dto.Name &&
-                    x.Id != id);
+                x.Name == dto.Name &&
+                x.Id != id);
 
             if (exists)
             {
@@ -100,19 +101,25 @@ namespace CrownRankApp.Infrastructure.Services.SocialMedia
                 Name = platform.Name
             };
         }
+
         public async Task<bool> DeleteAsync(Guid id)
         {
             await using var transaction = await context.Database.BeginTransactionAsync();
             var locked = await context.SocialMediaDefaults.Where(row => row.Id == id)
                 .ExecuteUpdateAsync(setters => setters.SetProperty(row => row.Name, row => row.Name));
-            if (locked == 0) return false;
+            if (locked == 0)
+            {
+                return false;
+            }
             if (await context.PaymentOperations.AnyAsync(payment => payment.Purpose == CrownRankApp.Domain.Models.PaymentPurpose.Entry
-                && payment.FulfilledAt == null && payment.Status != CrownRankApp.Domain.Models.PaymentStatus.Expired
-                && payment.Status != CrownRankApp.Domain.Models.PaymentStatus.Failed))
+                    && payment.FulfilledAt == null && payment.Status != CrownRankApp.Domain.Models.PaymentStatus.Expired
+                    && payment.Status != CrownRankApp.Domain.Models.PaymentStatus.Failed))
+            {
                 throw new InvalidOperationException("Lookup deletion is unavailable while an entry payment is active.");
+            }
 
             var platform = await context.SocialMediaDefaults
-            .FirstOrDefaultAsync(x => x.Id == id);
+                .FirstOrDefaultAsync(x => x.Id == id);
 
             if (platform == null)
             {
@@ -128,4 +135,3 @@ namespace CrownRankApp.Infrastructure.Services.SocialMedia
         }
     }
 }
-

@@ -42,7 +42,13 @@ namespace CrownRankApp.API.Controllers
         public async Task<ActionResult<List<DailyEntryResponseDto>>> GetDaily([FromQuery] DateOnly? date)
         {
             var selected = date ?? DateOnly.FromDateTime(DateTime.UtcNow);
-            if (selected == DateOnly.MaxValue) return BadRequest(new { error = "Date is out of range." });
+            if (selected == DateOnly.MaxValue)
+            {
+                return BadRequest(new
+                    {
+                        error = "Date is out of range."
+                    });
+            }
             return Ok(await service.GetDailyAsync(selected));
         }
 
@@ -54,8 +60,17 @@ namespace CrownRankApp.API.Controllers
         public async Task<ActionResult> DeleteEntry(Guid id)
         {
             bool deleted;
-            try { deleted = await service.DeleteAsync(id); }
-            catch (InvalidOperationException exception) { return Conflict(new { error = exception.Message }); }
+            try
+            {
+                deleted = await service.DeleteAsync(id);
+            }
+            catch (InvalidOperationException exception)
+            {
+                return Conflict(new
+                    {
+                        error = exception.Message
+                    });
+            }
 
             if (!deleted)
             {
@@ -66,4 +81,3 @@ namespace CrownRankApp.API.Controllers
         }
     }
 }
-
