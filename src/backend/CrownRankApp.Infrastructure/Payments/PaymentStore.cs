@@ -55,6 +55,7 @@ public sealed class PaymentStore(ApplicationDbContext context, ProfileImageStora
             var existing = await FindAsync(operation.Id, ct);
             if (existing is not null && existing.RequestHash == operation.RequestHash && existing.Purpose == operation.Purpose)
                 return existing;
+            if (existing is null && entry is not null) images.Delete(operation.Id);
             if (entry is not null && await context.PaymentOperations.AnyAsync(payment => payment.ReservedUsername == entry.Username, ct))
                 throw new InvalidOperationException("This username has an active checkout. Resume it or wait for it to expire.");
             throw;

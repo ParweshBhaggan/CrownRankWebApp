@@ -20,6 +20,8 @@ public sealed class ProfileImageStorage(string root)
         {
             using var stream = new MemoryStream(bytes);
             var info = await Image.IdentifyAsync(stream, ct);
+            if (info.Metadata.DecodedImageFormat?.Name is not ("JPEG" or "PNG" or "WEBP"))
+                throw new ArgumentException("The actual image format must be JPG, PNG, or WebP.");
             if (info.Width > 10000 || info.Height > 10000 || (long)info.Width * info.Height > 25_000_000)
                 throw new ArgumentException("The image dimensions are too large.");
             stream.Position = 0;

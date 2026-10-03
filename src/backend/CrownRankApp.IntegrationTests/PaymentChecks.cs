@@ -1,3 +1,5 @@
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
 using System.Collections.Concurrent;
 using CrownRankApp.Application.Payments;
 using CrownRankApp.Domain.Models;
@@ -37,13 +39,18 @@ static class PaymentChecks
             await using var lookup = new ApplicationDbContext(options);
             var category = await lookup.Categories.FirstAsync();
             var platform = await lookup.SocialMediaDefaults.SingleAsync(platform => platform.Name == "Instagram");
-            var png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aL1sAAAAASUVORK5CYII=";
+            using var sourceImage = new Image<Rgba32>(600, 500);
+            using var imageBytes = new MemoryStream();
+            sourceImage.SaveAsPng(imageBytes);
+            var png = "data:image/png;base64," + Convert.ToBase64String(imageBytes.ToArray());
             var request = new EntryCheckoutRequest(Guid.NewGuid(), 12.50m, "Paid creator", "paid_creator", category.Id,
                 [new SocialProfileRequest(platform.Id, "https://instagram.com/paid_creator")], png, true);
             foreach (var amount in new[] { 0m, -10m, 9.99m, 10000.01m, 10.001m })
                 await Reject<ArgumentException>(() => With(service => service.StartEntryAsync(request with { Amount = amount })), $"Checkout rejects {amount}");
             await Reject<ArgumentException>(() => With(service => service.StartEntryAsync(request with { AcceptedAgreements = false })), "Agreement acceptance is enforced on the server");
             var session = await With(service => service.StartEntryAsync(request));
+            var storedImage = Image.Identify(Path.Combine(folder, "assets", "profiles", $"{session.Id:N}.webp"));
+            Check(storedImage.Width == 300 && storedImage.Height == 250, "Server resizes profile images to the maximum dimensions");
             Check(session.Status == "pending", "New entry remains pending before payment");
             await using (var context = new ApplicationDbContext(options))
                 Check(!await context.Entries.AnyAsync(entry => entry.Username == request.Username), "Unpaid entry is absent from the board");
@@ -94,6 +101,42 @@ static class PaymentChecks
             Check((await With(service => service.ConfirmAsync(expired.Id)))!.Status == "expired", "Stripe expiry is recorded");
             await With(service => service.StartEntryAsync(expiredRequest with { ReferenceId = Guid.NewGuid() }));
             Check(true, "Expired checkout releases its username reservation");
+            var recoveryBoost = await With(service => service.StartBoostAsync(boost with { ReferenceId = Guid.NewGuid() }));
+            gateway.Pay(recoveryBoost.Id);
+            await using (var context = new ApplicationDbContext(options))
+                await context.PaymentOperations.Where(operation => operation.Id == recoveryBoost.Id)
+                    .ExecuteUpdateAsync(setters => setters.SetProperty(operation => operation.SessionId, (string?)null)
+                        .SetProperty(operation => operation.ExpiresAt, clock.GetUtcNow().UtcDateTime.AddMinutes(-1)));
+            Check((await With(service => service.ResumeAsync(recoveryBoost.Id)))!.Status == "paid", "Lost session attachment is recovered without a new charge");
+
+            var failedRequest = boost with { ReferenceId = Guid.NewGuid() };
+            var failedCheckout = await With(service => service.StartBoostAsync(failedRequest));
+            gateway.Fail(failedCheckout.Id);
+            Check((await With(service => service.ConfirmAsync(failedCheckout.Id)))!.Status == "failed", "Verified payment failure does not award a score");
+
+            var recoveryEntryId = Guid.NewGuid();
+            await using (var context = new ApplicationDbContext(options))
+            {
+                context.Entries.Add(new Entry(recoveryEntryId) { Name = "Recovery", Username = "recovery", Score = 10m });
+                await context.SaveChangesAsync();
+            }
+            var recoverable = await With(service => service.StartBoostAsync(new BoostCheckoutRequest(Guid.NewGuid(), recoveryEntryId, 10m)));
+            gateway.Pay(recoverable.Id);
+            await using (var context = new ApplicationDbContext(options))
+            {
+                context.Entries.Remove((await context.Entries.FindAsync(recoveryEntryId))!);
+                await context.SaveChangesAsync();
+            }
+            await Reject<InvalidOperationException>(() => With(service => service.ConfirmAsync(recoverable.Id)), "Fulfillment failure is surfaced after verified payment");
+            var failedFulfillment = (await With(service => service.StatusAsync(recoverable.Id)))!;
+            Check(failedFulfillment.Status == "paid" && !failedFulfillment.Fulfilled, "Payment remains paid with fulfillment pending after rollback");
+            await using (var context = new ApplicationDbContext(options))
+            {
+                context.Entries.Add(new Entry(recoveryEntryId) { Name = "Recovery", Username = "recovery", Score = 10m });
+                await context.SaveChangesAsync();
+            }
+            Check((await With(service => service.ConfirmAsync(recoverable.Id)))!.Fulfilled, "Retry recovers failed fulfillment without charging again");
+
             var stripe = new StripePaymentGateway(new StripeClient("sk_test_example"), new StripeSettings { WebhookSecret = "whsec_example" });
             await Reject<InvalidWebhookException>(() => Task.Run(() => stripe.VerifyWebhook("{}", "t=1,v1=invalid")), "Forged webhook signature is rejected");
             var configured = new PaymentSettings { MinimumAmount = 25m, MaximumAmount = 50m };
@@ -122,6 +165,7 @@ static class PaymentChecks
         public VerifiedCheckout? VerifyWebhook(string payload, string signature) => sessions[Guid.Parse(payload)];
         public void Pay(Guid id) => sessions[id] = sessions[id] with { Paid = true, Status = "complete", PaymentIntentId = $"pi_{id:N}", PaidAt = clock.GetUtcNow().UtcDateTime, Url = null };
         public void Expire(Guid id) => sessions[id] = sessions[id] with { Status = "expired", Url = null };
+        public void Fail(Guid id) => sessions[id] = sessions[id] with { Status = "complete", Failed = true };
         public void ChangeAmount(Guid id) => sessions[id] = sessions[id] with { AmountMinor = 1 };
     }
 }
