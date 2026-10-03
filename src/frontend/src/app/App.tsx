@@ -491,7 +491,10 @@ function Profile({ ranked, onBoost }: ProfileProps)
 function CrownRankApp()
 {
   const [revision, setRevision] = useState(0)
-  const { creators, loading: isLoading, error: loadError, retry } = useCreators(undefined, revision)
+  const { creators, loading: isLoading, error: leaderboardError, retry } = useCreators(undefined, revision)
+  const { loading: settingsLoading, error: settingsError, retry: retrySettings } = useLookups()
+  const loadError = leaderboardError || settingsError
+  const retryBoard = () => { retry(); retrySettings() }
   const ranked = useMemo(() => rankCreators(creators), [creators])
   const confirmed = useCallback(() => setRevision((value) => value + 1), [])
   const [entryOpen, setEntryOpen] = useState(false)
@@ -502,10 +505,10 @@ function CrownRankApp()
       <p className="eyebrow">CrownRank API</p>
       <h1>{loadError ? 'Leaderboard unavailable' : 'Loading the ranking…'}</h1>
       <p>{loadError || 'Fetching the latest scores.'}</p>
-      {loadError && <button onClick={retry}>Retry</button>}
+      {loadError && <button onClick={retryBoard}>Retry</button>}
     </section>
   )
-  const ready = !isLoading && !loadError
+  const ready = !isLoading && !settingsLoading && !loadError
   return (
     <BrowserRouter>
       <Layout onEnter={() => setEntryOpen(true)}>

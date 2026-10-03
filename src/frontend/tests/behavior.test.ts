@@ -1,6 +1,6 @@
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { parseAmount, formatCurrency } from '../src/shared/format/currency'
+import { parseAmount, formatCurrency, configurePaymentSettings, defaultPaymentSettings } from '../src/shared/format/currency'
 import { rankCreators } from '../src/features/leaderboard/application/rankCreators'
 import { validateRankingEntry } from '../src/features/creator-entry/application/validateRankingEntry'
 import { archivedDateKeys, resolveDailyDate, todayKey } from '../src/features/leaderboard/application/dailyDates'
@@ -50,3 +50,13 @@ test('daily dates are UTC-stable and invalid or future archive routes fall back 
   }
 })
 
+
+test('currency and amount limits follow the backend configuration', () => {
+  try {
+    configurePaymentSettings({ ...defaultPaymentSettings, currency: 'eur', minimumAmount: 30, maximumAmount: 40 })
+    assert.ok(Number.isNaN(parseAmount('29.99')))
+    assert.equal(parseAmount('30.50'), 30.5)
+    assert.ok(Number.isNaN(parseAmount('40.01')))
+    assert.match(formatCurrency(30.5), /€30\.50/)
+  } finally { configurePaymentSettings(defaultPaymentSettings) }
+})
