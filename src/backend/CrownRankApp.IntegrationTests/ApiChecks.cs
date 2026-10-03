@@ -1,3 +1,4 @@
+using CrownRankApp.Infrastructure.Payments;
 using System.Net;
 using System.Net.Http.Json;
 using CrownRankApp.API;
@@ -25,6 +26,8 @@ static class ApiChecks
             }));
             builder.ConfigureServices(services =>
             {
+                services.RemoveAll<StripeSettings>();
+                services.AddSingleton(new StripeSettings { WebhookSecret = "whsec_example" });
                 services.RemoveAll<DbContextOptions<ApplicationDbContext>>();
                 services.AddSingleton(options);
                 var worker = services.Single(descriptor => descriptor.ServiceType == typeof(IHostedService)

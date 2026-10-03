@@ -22,7 +22,7 @@ In `src/backend/CrownRankApp.API/appsettings.json`:
 }
 ```
 
-Set the secret key for your Stripe test account and the signing secret from your current Stripe CLI listener. The secret key and signing secret are different credentials. Real values can be entered in appsettings as requested; they never belong in the frontend. No publishable key is needed for hosted Checkout redirects. Existing database connection settings are preserved.
+GitHub secret protection prevents committing the supplied Stripe test key. A separately provided local appsettings.json contains the example's test credentials and preserves the existing database connection. Place it in CrownRankApp.API after checkout. Replace its signing secret with the value from your current Stripe CLI listener when starting a new listener. The secret key and signing secret are different credentials. Real values can be entered in appsettings as requested; they never belong in the frontend. No publishable key is needed for hosted Checkout redirects. Existing database connection settings are preserved.
 
 `Payments` also supplies the frontend's currency, input limits, suggested amounts, and validation through `GET /api/payments/settings`. Changing limits requires restarting the backend. USD, EUR, and GBP are supported as two-decimal currencies. Changing the currency does not convert existing leaderboard scores or historical payments; use one currency for a running leaderboard.
 
