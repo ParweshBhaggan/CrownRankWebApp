@@ -1,26 +1,41 @@
 export const apiBaseUrl = import.meta.env?.VITE_API_URL?.replace(/\/$/, '') ?? ''
 
-export class ApiError extends Error {
+export class ApiError extends Error
+{
   readonly status: number
-  constructor(message: string, status: number) { super(message); this.status = status }
+
+  constructor(message: string, status: number)
+  {
+    super(message)
+    this.status = status
+  }
 }
 
-export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
+export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T>
+{
   let response: Response
+
   try {
     response = await fetch(`${apiBaseUrl}${path}`, init)
   } catch {
     throw new Error('The API request was interrupted. Check that the backend is running, then retry.')
   }
+
   if (!response.ok) {
-    const problem = await response.json().catch(() => ({})) as { error?: string; detail?: string; errors?: Record<string, string[]> }
-    const message = problem.errors ? Object.values(problem.errors).flat().join(' ') : problem.error ?? problem.detail
+    const problem = (await response.json().catch(() => ({}))) as {
+      error?: string
+      detail?: string
+      errors?: Record<string, string[]>
+    }
+    const message = problem.errors ? Object.values(problem.errors).flat().join(' ') : (problem.error ?? problem.detail)
     throw new ApiError(message || 'The request could not be completed. Please try again.', response.status)
   }
+
   if (response.status === 204) return undefined as T
   return response.json() as Promise<T>
 }
 
-export function resolveApiAsset(url: string): string {
+export function resolveApiAsset(url: string): string
+{
   return url.startsWith('/') ? `${apiBaseUrl}${url}` : url
 }

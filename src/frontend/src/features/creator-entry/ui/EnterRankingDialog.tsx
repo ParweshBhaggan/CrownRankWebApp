@@ -6,10 +6,15 @@ import { formatCurrency, parseAmount } from '../../../shared/format/currency'
 import { validateRankingEntry } from '../application/validateRankingEntry'
 import type { RankingEntryValidationErrors, SocialLinkInput } from '../domain/rankingEntry'
 
-interface Props { readonly isOpen: boolean; readonly onClose: (completed?: boolean) => void; readonly onConfirmed: () => void }
+interface Props {
+  readonly isOpen: boolean
+  readonly onClose: (completed?: boolean) => void
+  readonly onConfirmed: () => void
+}
 const createSocialLink = (): SocialLinkInput => ({ id: crypto.randomUUID(), platform: '', url: '' })
 
-export function EnterRankingDialog({ isOpen, onClose, onConfirmed }: Props) {
+export function EnterRankingDialog({ isOpen, onClose, onConfirmed }: Props)
+{
   const { categories, platforms, loading: optionsLoading, error: optionsError, retry: retryOptions } = useLookups()
   const dialogRef = useRef<HTMLDialogElement>(null)
   const [name, setName] = useState('')
@@ -27,25 +32,38 @@ export function EnterRankingDialog({ isOpen, onClose, onConfirmed }: Props) {
   const submitting = useRef(false)
   const entryReference = useRef(crypto.randomUUID())
 
-  useEffect(() => {
+  useEffect(() =>
+  {
     const dialog = dialogRef.current
     if (!dialog) return
     if (isOpen && !dialog.open) dialog.showModal()
     if (!isOpen && dialog.open) dialog.close()
   }, [isOpen])
 
-  useEffect(() => () => { if (previewUrl) URL.revokeObjectURL(previewUrl) }, [previewUrl])
-  const closeDialog = () => { if (!submitting.current) onClose(checkoutReady) }
-  const updateSocialLink = (id: string, patch: Partial<SocialLinkInput>) => setSocialLinks((current) => current.map((link) => link.id === id ? { ...link, ...patch } : link))
+  useEffect(
+    () => () =>
+    {
+      if (previewUrl) URL.revokeObjectURL(previewUrl)
+    },
+    [previewUrl],
+  )
+  const closeDialog = () =>
+  {
+    if (!submitting.current) onClose(checkoutReady)
+  }
+  const updateSocialLink = (id: string, patch: Partial<SocialLinkInput>) =>
+    setSocialLinks((current) => current.map((link) => (link.id === id ? { ...link, ...patch } : link)))
 
-  function handleImageChange(event: ChangeEvent<HTMLInputElement>) {
+  function handleImageChange(event: ChangeEvent<HTMLInputElement>)
+  {
     const file = event.target.files?.[0]
     if (previewUrl) URL.revokeObjectURL(previewUrl)
     setProfileImage(file)
     setPreviewUrl(file ? URL.createObjectURL(file) : undefined)
   }
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>)
+  {
     event.preventDefault()
     if (submitting.current) return
     if (optionsLoading || optionsError || !categories.length || !platforms.length) return
@@ -62,27 +80,259 @@ export function EnterRankingDialog({ isOpen, onClose, onConfirmed }: Props) {
       await createEntry({ name, username, category, socialLinks, profileImage, contribution }, entryReference.current)
       onConfirmed()
       setCheckoutReady(true)
-    } catch (error) { setSubmitError(error instanceof Error ? error.message : 'Could not submit your entry. Please retry.') } finally { submitting.current = false; setIsSubmitting(false) }
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : 'Could not submit your entry. Please retry.')
+    } finally {
+      submitting.current = false
+      setIsSubmitting(false)
+    }
   }
 
   return (
-    <dialog ref={dialogRef} className="entry-dialog" onCancel={(event) => { event.preventDefault(); closeDialog() }} onClose={closeDialog}>
+    <dialog
+      ref={dialogRef}
+      className="entry-dialog"
+      onCancel={(event) =>
+      {
+        event.preventDefault()
+        closeDialog()
+      }}
+      onClose={closeDialog}
+    >
       <div className="dialog-shell">
-        <div className="dialog-topbar"><a className="brand" href="/">CrownRank</a><button className="icon-button" type="button" aria-label="Close dialog" onClick={closeDialog}>×</button></div>
+        <div className="dialog-topbar">
+          <a className="brand" href="/">
+            CrownRank
+          </a>
+          <button className="icon-button" type="button" aria-label="Close dialog" onClick={closeDialog}>
+            ×
+          </button>
+        </div>
         {checkoutReady ? (
-          <div className="success-state" role="status"><span className="success-mark">✓</span><p className="eyebrow">Entry saved</p><h2>You’re ready for the crown.</h2><p>Your profile is now on the leaderboard. Your opening amount was saved as your score. No money was charged.</p><button className="primary-button" type="button" onClick={closeDialog}>Back to leaderboard</button></div>
+          <div className="success-state" role="status">
+            <span className="success-mark">✓</span>
+            <p className="eyebrow">Entry saved</p>
+            <h2>You’re ready for the crown.</h2>
+            <p>
+              Your profile is now on the leaderboard. Your opening amount was saved as your score. No money was charged.
+            </p>
+            <button className="primary-button" type="button" onClick={closeDialog}>
+              Back to leaderboard
+            </button>
+          </div>
         ) : (
-          <form onSubmit={handleSubmit} noValidate>{optionsLoading && <p role="status">Loading categories and social platforms…</p>}{optionsError && <p role="alert">{optionsError} <button type="button" onClick={retryOptions}>Retry options</button></p>}{!optionsLoading && !optionsError && (!categories.length || !platforms.length) && <p role="alert">Entry options are unavailable. Add categories and social platforms in the backend first.</p>}<fieldset disabled={isSubmitting || optionsLoading || Boolean(optionsError) || !categories.length || !platforms.length} className="entry-fields">
-            <header className="dialog-heading"><p className="eyebrow">Enter the ranking</p><h2>Put your name on the board.</h2><p>No account needed. Choose your amount, add your creator profile, and submit your starting score.</p></header>
-            <div className="form-layout">
-              <div className="form-main">
-                <div className="field-group"><label htmlFor="name">Name</label><input id="name" value={name} onChange={(event) => setName(event.target.value)} autoComplete="name" />{errors.name && <p className="field-error">{errors.name}</p>}</div>
-                <div className="field-group"><label htmlFor="username">Creator username</label><div className="input-prefix"><span>@</span><input id="username" value={username} onChange={(event) => setUsername(event.target.value)} placeholder="yourhandle" autoComplete="username" aria-describedby={errors.username ? 'username-error' : undefined} /></div>{errors.username && <p className="field-error" id="username-error">{errors.username}</p>}</div>
-                <div className="field-group"><label htmlFor="category">Creator category</label><select id="category" value={category} onChange={(event) => setCategory(event.target.value as CreatorCategory)}><option value="">Choose a category</option>{categories.map((value) => <option key={value.id} value={value.id}>{value.name}</option>)}</select>{errors.category && <p className="field-error">{errors.category}</p>}<p className="field-hint">Choose the category that best represents your primary content.</p></div>
-                <fieldset className="field-group"><legend>Social profiles</legend><p className="field-hint">At least one public creator profile is required.</p><div className="social-fields">{socialLinks.map((link, index) => <div className="social-row" key={link.id}><select aria-label={`Platform ${index + 1}`} value={link.platform} onChange={(event) => updateSocialLink(link.id, { platform: event.target.value as SocialPlatform })}><option value="">Choose a platform</option>{platforms.map((platform) => <option key={platform.id} value={platform.name}>{platform.name}</option>)}</select><input type="url" aria-label={`Social profile URL ${index + 1}`} value={link.url} onChange={(event) => updateSocialLink(link.id, { url: event.target.value })} placeholder="https://..." inputMode="url" />{socialLinks.length > 1 && <button className="remove-button" type="button" aria-label={`Remove social profile ${index + 1}`} onClick={() => setSocialLinks((current) => current.filter((item) => item.id !== link.id))}>×</button>}</div>)}</div>{socialLinks.length < 5 && <button className="text-button" type="button" onClick={() => setSocialLinks((current) => [...current, createSocialLink()])}>+ Add another profile</button>}{errors.socialLinks && <p className="field-error">{errors.socialLinks}</p>}</fieldset>
-                <div className="field-group"><label htmlFor="profile-image">Profile image</label><label className="upload-field" htmlFor="profile-image">{previewUrl ? <img src={previewUrl} alt="Selected profile preview" /> : <span className="upload-icon">↥</span>}<span><strong>{profileImage?.name ?? 'Choose an image'}</strong><small>JPG, PNG or WebP · Max 5 MB</small></span></label><input className="visually-hidden" id="profile-image" type="file" accept="image/jpeg,image/png,image/webp" onChange={handleImageChange} />{errors.profileImage && <p className="field-error">{errors.profileImage}</p>}</div>
+          <form onSubmit={handleSubmit} noValidate>
+            {optionsLoading && <p role="status">Loading categories and social platforms…</p>}
+            {optionsError && (
+              <p role="alert">
+                {optionsError}{' '}
+                <button type="button" onClick={retryOptions}>
+                  Retry options
+                </button>
+              </p>
+            )}
+            {!optionsLoading && !optionsError && (!categories.length || !platforms.length) && (
+              <p role="alert">
+                Entry options are unavailable. Add categories and social platforms in the backend first.
+              </p>
+            )}
+            <fieldset
+              disabled={
+                isSubmitting || optionsLoading || Boolean(optionsError) || !categories.length || !platforms.length
+              }
+              className="entry-fields"
+            >
+              <header className="dialog-heading">
+                <p className="eyebrow">Enter the ranking</p>
+                <h2>Put your name on the board.</h2>
+                <p>No account needed. Choose your amount, add your creator profile, and submit your starting score.</p>
+              </header>
+              <div className="form-layout">
+                <div className="form-main">
+                  <div className="field-group">
+                    <label htmlFor="name">Name</label>
+                    <input
+                      id="name"
+                      value={name}
+                      onChange={(event) => setName(event.target.value)}
+                      autoComplete="name"
+                    />
+                    {errors.name && <p className="field-error">{errors.name}</p>}
+                  </div>
+                  <div className="field-group">
+                    <label htmlFor="username">Creator username</label>
+                    <div className="input-prefix">
+                      <span>@</span>
+                      <input
+                        id="username"
+                        value={username}
+                        onChange={(event) => setUsername(event.target.value)}
+                        placeholder="yourhandle"
+                        autoComplete="username"
+                        aria-describedby={errors.username ? 'username-error' : undefined}
+                      />
+                    </div>
+                    {errors.username && (
+                      <p className="field-error" id="username-error">
+                        {errors.username}
+                      </p>
+                    )}
+                  </div>
+                  <div className="field-group">
+                    <label htmlFor="category">Creator category</label>
+                    <select
+                      id="category"
+                      value={category}
+                      onChange={(event) => setCategory(event.target.value as CreatorCategory)}
+                    >
+                      <option value="">Choose a category</option>
+                      {categories.map((value) => (
+                        <option key={value.id} value={value.id}>
+                          {value.name}
+                        </option>
+                      ))}
+                    </select>
+                    {errors.category && <p className="field-error">{errors.category}</p>}
+                    <p className="field-hint">Choose the category that best represents your primary content.</p>
+                  </div>
+                  <fieldset className="field-group">
+                    <legend>Social profiles</legend>
+                    <p className="field-hint">At least one public creator profile is required.</p>
+                    <div className="social-fields">
+                      {socialLinks.map((link, index) => (
+                        <div className="social-row" key={link.id}>
+                          <select
+                            aria-label={`Platform ${index + 1}`}
+                            value={link.platform}
+                            onChange={(event) =>
+                              updateSocialLink(link.id, { platform: event.target.value as SocialPlatform })
+                            }
+                          >
+                            <option value="">Choose a platform</option>
+                            {platforms.map((platform) => (
+                              <option key={platform.id} value={platform.name}>
+                                {platform.name}
+                              </option>
+                            ))}
+                          </select>
+                          <input
+                            type="url"
+                            aria-label={`Social profile URL ${index + 1}`}
+                            value={link.url}
+                            onChange={(event) => updateSocialLink(link.id, { url: event.target.value })}
+                            placeholder="https://..."
+                            inputMode="url"
+                          />
+                          {socialLinks.length > 1 && (
+                            <button
+                              className="remove-button"
+                              type="button"
+                              aria-label={`Remove social profile ${index + 1}`}
+                              onClick={() => setSocialLinks((current) => current.filter((item) => item.id !== link.id))}
+                            >
+                              ×
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    {socialLinks.length < 5 && (
+                      <button
+                        className="text-button"
+                        type="button"
+                        onClick={() => setSocialLinks((current) => [...current, createSocialLink()])}
+                      >
+                        + Add another profile
+                      </button>
+                    )}
+                    {errors.socialLinks && <p className="field-error">{errors.socialLinks}</p>}
+                  </fieldset>
+                  <div className="field-group">
+                    <label htmlFor="profile-image">Profile image</label>
+                    <label className="upload-field" htmlFor="profile-image">
+                      {previewUrl ? (
+                        <img src={previewUrl} alt="Selected profile preview" />
+                      ) : (
+                        <span className="upload-icon">↥</span>
+                      )}
+                      <span>
+                        <strong>{profileImage?.name ?? 'Choose an image'}</strong>
+                        <small>JPG, PNG or WebP · Max 5 MB</small>
+                      </span>
+                    </label>
+                    <input
+                      className="visually-hidden"
+                      id="profile-image"
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      onChange={handleImageChange}
+                    />
+                    {errors.profileImage && <p className="field-error">{errors.profileImage}</p>}
+                  </div>
+                </div>
+                <aside className="contribution-card">
+                  <p className="eyebrow">Your opening contribution</p>
+                  <label htmlFor="amount">Choose your amount</label>
+                  <div className="amount-input">
+                    <span>€</span>
+                    <input
+                      id="amount"
+                      type="number"
+                      min="1"
+                      max="10000"
+                      step="0.01"
+                      value={amount}
+                      onChange={(event) => setAmount(event.target.value)}
+                      inputMode="decimal"
+                    />
+                  </div>
+                  <div className="quick-amounts" aria-label="Suggested amounts">
+                    {[10, 25, 50, 100].map((value) => (
+                      <button
+                        className={amount === String(value) ? 'selected' : ''}
+                        key={value}
+                        type="button"
+                        onClick={() => setAmount(String(value))}
+                      >
+                        €{value}
+                      </button>
+                    ))}
+                  </div>
+                  {errors.contribution && <p className="field-error">{errors.contribution}</p>}
+                  <div className="rank-note">
+                    <span>♛</span>
+                    <p>
+                      <strong>Every amount counts</strong>Your contribution becomes your starting score. Fans can boost
+                      it later.
+                    </p>
+                  </div>
+                  <label className="check-row">
+                    <input
+                      type="checkbox"
+                      checked={acceptedTerms}
+                      onChange={(event) => setAcceptedTerms(event.target.checked)}
+                    />
+                    <span>I confirm I own or represent this creator profile and accept the platform terms.</span>
+                  </label>
+                  {errors.terms && <p className="field-error">{errors.terms}</p>}
+                </aside>
               </div>
-              <aside className="contribution-card"><p className="eyebrow">Your opening contribution</p><label htmlFor="amount">Choose your amount</label><div className="amount-input"><span>€</span><input id="amount" type="number" min="1" max="10000" step="0.01" value={amount} onChange={(event) => setAmount(event.target.value)} inputMode="decimal" /></div><div className="quick-amounts" aria-label="Suggested amounts">{[10, 25, 50, 100].map((value) => <button className={amount === String(value) ? 'selected' : ''} key={value} type="button" onClick={() => setAmount(String(value))}>€{value}</button>)}</div>{errors.contribution && <p className="field-error">{errors.contribution}</p>}<div className="rank-note"><span>♛</span><p><strong>Every amount counts</strong>Your contribution becomes your starting score. Fans can boost it later.</p></div><label className="check-row"><input type="checkbox" checked={acceptedTerms} onChange={(event) => setAcceptedTerms(event.target.checked)} /><span>I confirm I own or represent this creator profile and accept the platform terms.</span></label>{errors.terms && <p className="field-error">{errors.terms}</p>}</aside></div></fieldset>{submitError && <p role="alert" className="field-error">{submitError}</p>}<button className="primary-button full" type="submit" disabled={isSubmitting || optionsLoading || Boolean(optionsError) || !categories.length || !platforms.length}>{isSubmitting ? 'Saving entry…' : `Submit with ${formatCurrency(parseAmount(amount))}`}</button><p className="secure-note">No payment required · The amount becomes your starting score.</p>
+            </fieldset>
+            {submitError && (
+              <p role="alert" className="field-error">
+                {submitError}
+              </p>
+            )}
+            <button
+              className="primary-button full"
+              type="submit"
+              disabled={
+                isSubmitting || optionsLoading || Boolean(optionsError) || !categories.length || !platforms.length
+              }
+            >
+              {isSubmitting ? 'Saving entry…' : `Submit with ${formatCurrency(parseAmount(amount))}`}
+            </button>
+            <p className="secure-note">No payment required · The amount becomes your starting score.</p>
           </form>
         )}
       </div>

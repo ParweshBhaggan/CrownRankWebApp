@@ -6,5 +6,10 @@ export interface CreateCheckoutRequest {
   readonly amount: number
   readonly currency: 'EUR'
 }
-export interface CheckoutSession { readonly id: string; readonly confirmed: boolean }
-export interface PaymentGateway { createCheckout(request: CreateCheckoutRequest): Promise<CheckoutSession> }
+export interface CheckoutSession {
+  readonly id: string
+  readonly confirmed: boolean
+}
+export interface PaymentGateway {
+  createCheckout(request: CreateCheckoutRequest): Promise<CheckoutSession>
+}

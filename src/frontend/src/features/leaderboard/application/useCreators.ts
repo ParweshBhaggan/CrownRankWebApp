@@ -1,19 +1,43 @@
 import { useEffect, useState } from 'react'
 import type { Creator } from '../domain/creator'
 import { startReadRequest } from '../../../shared/api/startReadRequest'
-import { ApiLeaderboardRepository } from '../data/ApiLeaderboardRepository'
+import { appServices } from '../../../shared/config/appServices'
 
-const repository = new ApiLeaderboardRepository()
+const repository = appServices.leaderboardRepository
 
-export function useCreators(path: string, revision = 0) {
-  const [state, setState] = useState<{ key: string; path: string; creators: readonly Creator[]; error: string }>({ key: '', path: '', creators: [], error: '' })
+export function useCreators(dailyDate?: string, revision = 0)
+{
+  const selection = dailyDate ?? 'all-time'
+
+  const [state, setState] = useState<{ key: string; selection: string; creators: readonly Creator[]; error: string }>({
+    key: '',
+    selection: '',
+    creators: [],
+    error: '',
+  })
   const [retry, setRetry] = useState(0)
-  const key = `${path}:${revision}:${retry}`
-  const dailyDate = path.match(/\/daily\/([^/?]+)/)?.[1]
-  useEffect(() => startReadRequest(
-    () => dailyDate ? repository.getDaily(dailyDate) : repository.getAll(),
-    creators => setState({ key, path, creators, error: '' }),
-    error => setState({ key, path, creators: [], error: error instanceof Error ? error.message : 'Could not load rankings.' }),
-  ), [path, key, dailyDate])
-  return { creators: state.creators, error: state.path === path ? state.error : '', loading: state.path !== path, retry: () => setRetry(x => x + 1) }
+  const key = `${selection}:${revision}:${retry}`
+
+  useEffect(
+    () =>
+      startReadRequest(
+        () => (dailyDate ? repository.getDaily(dailyDate) : repository.getAll()),
+        (creators) => setState({ key, selection, creators, error: '' }),
+        (error) =>
+          setState({
+            key,
+            selection,
+            creators: [],
+            error: error instanceof Error ? error.message : 'Could not load rankings.',
+          }),
+      ),
+    [selection, key, dailyDate],
+  )
+
+  return {
+    creators: state.creators,
+    error: state.selection === selection ? state.error : '',
+    loading: state.selection !== selection,
+    retry: () => setRetry((x) => x + 1),
+  }
 }
