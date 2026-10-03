@@ -149,11 +149,19 @@ namespace CrownRankApp.Infrastructure.Services.Entry
 
         public async Task<bool> DeleteAsync(Guid id)
         {
-            var entry = await context.Entries.FirstOrDefaultAsync(entry => entry.Id == id);
-            if (entry == null) return false;
+            await using var transaction = await context.Database.BeginTransactionAsync();
+            var locked = await context.Entries.Where(entry => entry.Id == id)
+                .ExecuteUpdateAsync(setters => setters.SetProperty(entry => entry.Score, entry => entry.Score));
+            if (locked == 0) return false;
+            if (await context.PaymentOperations.AnyAsync(payment => payment.EntryId == id
+                && payment.FulfilledAt == null && payment.Status != PaymentStatus.Expired && payment.Status != PaymentStatus.Failed))
+                throw new InvalidOperationException("Cannot delete an entry with an active payment.");
+            var entry = await context.Entries.FirstAsync(entry => entry.Id == id);
             context.Entries.Remove(entry); // Social links are deleted by the configured cascade.
             await context.SaveChangesAsync();
+            await transaction.CommitAsync();
             return true;
         }
     }
 }
+

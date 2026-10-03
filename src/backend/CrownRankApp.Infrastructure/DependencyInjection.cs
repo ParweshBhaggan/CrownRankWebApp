@@ -1,3 +1,6 @@
+using CrownRankApp.Application.Payments;
+using CrownRankApp.Infrastructure.Payments;
+using Stripe;
 using CrownRankApp.Application.Services.Category;
 using CrownRankApp.Application.Services.Entry;
 using CrownRankApp.Application.Services.SocialMedia;
@@ -26,6 +29,28 @@ namespace CrownRankApp.Infrastructure
             return services;
         }
 
+        public static IServiceCollection AddPayments(this IServiceCollection services, IConfiguration configuration, string webRoot)
+        {
+            var payments = configuration.GetSection("Payments").Get<PaymentSettings>() ?? new PaymentSettings();
+            payments.Validate();
+            var stripe = configuration.GetSection("Stripe").Get<StripeSettings>() ?? new StripeSettings();
+            if (!Uri.TryCreate(stripe.FrontendUrl, UriKind.Absolute, out var url)
+                || url.Scheme is not ("http" or "https") || url.UserInfo.Length != 0 || url.Query.Length != 0 || url.Fragment.Length != 0
+                || (url.Scheme == "http" && !url.IsLoopback))
+                throw new InvalidOperationException("Stripe:FrontendUrl must be HTTPS (HTTP is allowed for localhost).");
+            // Empty keys allow tooling/migrations to run; actual checkout requires configured keys.
+            if (!string.IsNullOrEmpty(stripe.SecretKey) && stripe.SecretKey.StartsWith("sk_live_") != stripe.LiveMode)
+                throw new InvalidOperationException("Stripe key and LiveMode do not match.");
+            services.AddSingleton(payments);
+            services.AddSingleton(stripe);
+            services.AddSingleton(new StripeClient(string.IsNullOrWhiteSpace(stripe.SecretKey) ? "sk_test_unconfigured" : stripe.SecretKey));
+            services.AddSingleton(new ProfileImageStorage(webRoot));
+            services.AddScoped<IPaymentGateway, StripePaymentGateway>();
+            services.AddScoped<IPaymentStore, PaymentStore>();
+            services.AddScoped<CheckoutService>();
+            return services;
+        }
+
         public static IServiceCollection AddDatabaseService(this IServiceCollection dbServices, IConfiguration configuration) 
         {
             var dbProvider = configuration["Database:Provider"] ?? throw new InvalidOperationException("Database provider not configured");
@@ -48,3 +73,4 @@ namespace CrownRankApp.Infrastructure
         }
     }
 }
+

@@ -1,7 +1,8 @@
 import { ApiLeaderboardRepository } from '../../features/leaderboard/data/ApiLeaderboardRepository'
-import { ScoreBoostGateway } from '../../features/payments/data/ScoreBoostGateway'
+import { StripeCheckoutGateway } from '../../features/payments/data/StripeCheckoutGateway'
 
 export const appServices = {
   leaderboardRepository: new ApiLeaderboardRepository(),
-  paymentGateway: new ScoreBoostGateway(),
+  paymentGateway: new StripeCheckoutGateway(),
 } as const
+

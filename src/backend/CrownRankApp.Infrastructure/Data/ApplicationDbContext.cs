@@ -6,6 +6,7 @@ namespace CrownRankApp.Infrastructure.Data
 {
     public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : DbContext(options)
     {
+        public DbSet<PaymentOperation> PaymentOperations { get; set; }
         public DbSet<ScoreAddition> ScoreAdditions { get; set; }
         public DbSet<Entry> Entries { get; set; }
         public DbSet<Category> Categories { get; set; }
@@ -55,8 +56,15 @@ namespace CrownRankApp.Infrastructure.Data
             modelBuilder.Entity<ScoreAddition>().Property(addition => addition.Amount).HasPrecision(18, 2);
             modelBuilder.Entity<ScoreAddition>().HasIndex(addition => new { addition.CreatedDate, addition.EntryId });
 
+            modelBuilder.Entity<PaymentOperation>().Property(payment => payment.Amount).HasPrecision(18, 2);
+            modelBuilder.Entity<PaymentOperation>().HasIndex(payment => payment.ReservedUsername).IsUnique();
+            modelBuilder.Entity<PaymentOperation>().HasIndex(payment => payment.SessionId).IsUnique();
+            modelBuilder.Entity<PaymentOperation>().HasIndex(payment => payment.PaymentIntentId).IsUnique();
+            modelBuilder.Entity<PaymentOperation>().HasIndex(payment => new { payment.FulfilledAt, payment.Status, payment.CreatedDate });
+
             CategorySeeder.Seed(modelBuilder);
             SocialMediaSeeder.Seed(modelBuilder);
         }
     }
 }
+

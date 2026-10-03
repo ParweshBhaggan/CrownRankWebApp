@@ -1,8 +1,9 @@
+import { PaymentResultPage } from "../features/payments/ui/PaymentResultPage"
 import { LookupProvider } from '../shared/config/LookupProvider'
 import { useLookups } from '../shared/config/useLookups'
 import { useCreators } from '../features/leaderboard/application/useCreators'
 import { About, Rules, Faq, Terms, Privacy } from '../pages/InformationPages'
-import { useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useMemo, useState, type ReactNode } from 'react'
 import { BrowserRouter, Link, NavLink, Navigate, Route, Routes, useParams, useSearchParams } from 'react-router-dom'
 import { EnterRankingDialog } from '../features/creator-entry/ui/EnterRankingDialog'
 import { rankCreators } from '../features/leaderboard/application/rankCreators'
@@ -139,7 +140,7 @@ function Home({ ranked, onBoost, onEnter, revision }: HomeProps)
             <span>Claim the crown.</span>
           </h1>
           <p className="intro">
-            Creators enter with any amount. Communities boost who they believe in. Every score is visible.
+            Creators enter with a contribution. Communities boost who they believe in. Every score is visible.
           </p>
           <div className="hero-actions">
             <button className="primary-button large" onClick={onEnter}>
@@ -149,7 +150,7 @@ function Home({ ranked, onBoost, onEnter, revision }: HomeProps)
           </div>
           <div className="trust-row">
             <span>No account required</span>
-            <span>Any starting amount</span>
+            <span>Choose your contribution</span>
             <span>Transparent ranking</span>
           </div>
         </div>
@@ -492,7 +493,7 @@ function CrownRankApp()
   const [revision, setRevision] = useState(0)
   const { creators, loading: isLoading, error: loadError, retry } = useCreators(undefined, revision)
   const ranked = useMemo(() => rankCreators(creators), [creators])
-  const confirmed = () => setRevision((value) => value + 1)
+  const confirmed = useCallback(() => setRevision((value) => value + 1), [])
   const [entryOpen, setEntryOpen] = useState(false)
   const [entryVersion, setEntryVersion] = useState(0)
   const [boostCreator, setBoostCreator] = useState<Creator>()
@@ -541,6 +542,8 @@ function CrownRankApp()
             path="/creators/:id"
             element={ready ? <Profile ranked={ranked} onBoost={setBoostCreator} /> : boardState}
           />
+          <Route path="/payment/success" element={<PaymentResultPage onConfirmed={confirmed} />} />
+          <Route path="/payment/cancel" element={<PaymentResultPage cancelled onConfirmed={confirmed} />} />
           <Route path="/about" element={<About />} />
           <Route path="/rules" element={<Rules />} />
           <Route path="/faq" element={<Faq />} />
@@ -579,3 +582,4 @@ export function App()
     </LookupProvider>
   )
 }
+

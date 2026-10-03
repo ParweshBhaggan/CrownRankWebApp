@@ -1,3 +1,5 @@
+using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.RateLimiting;
 
 using CrownRankApp.Infrastructure;
 using Scalar.AspNetCore;
@@ -21,6 +23,17 @@ namespace CrownRankApp.API
             builder.Services.AddOpenApi();
 
             builder.Services.AddInfrastructure();
+            builder.Services.AddPayments(builder.Configuration,
+                builder.Environment.WebRootPath ?? Path.Combine(builder.Environment.ContentRootPath, "wwwroot"));
+            builder.Services.AddHostedService<PaymentRecoveryWorker>();
+            builder.Services.AddProblemDetails();
+            builder.Services.AddRateLimiter(options =>
+            {
+                options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+                options.AddPolicy("payments", http => RateLimitPartition.GetFixedWindowLimiter(
+                    http.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                    _ => new FixedWindowRateLimiterOptions { PermitLimit = 60, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+            });
             builder.Services.AddDatabaseService(builder.Configuration);
 
             var app = builder.Build();
@@ -32,10 +45,13 @@ namespace CrownRankApp.API
                 app.MapScalarApiReference();
             }
 
+            app.UseExceptionHandler();
             app.UseHttpsRedirection();
+            app.UseStaticFiles();
 
             app.UseCors("Frontend");
             app.UseAuthorization();
+            app.UseRateLimiter();
 
 
             app.MapControllers();
@@ -44,3 +60,4 @@ namespace CrownRankApp.API
         }
     }
 }
+

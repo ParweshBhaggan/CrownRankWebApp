@@ -6,6 +6,7 @@ export interface SocialLinkInput {
   readonly url: string
 }
 export interface RankingEntryDraft {
+  readonly acceptedAgreements?: boolean
   readonly name: string
   readonly username: string
   readonly category: CreatorCategory
@@ -22,3 +23,4 @@ export interface RankingEntryValidationErrors {
   profileImage?: string
   terms?: string
 }
+
