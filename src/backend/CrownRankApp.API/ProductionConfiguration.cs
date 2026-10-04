@@ -56,7 +56,7 @@ public static class ProductionConfiguration
         {
             if (provider.TryGet(key, out _))
             {
-                return provider is not JsonConfigurationProvider;
+                return provider is not JsonConfigurationProvider and not JsonStreamConfigurationProvider;
             }
         }
         return false;
