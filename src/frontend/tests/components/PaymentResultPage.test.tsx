@@ -12,6 +12,7 @@ vi.mock('../../src/shared/api/services/paymentApi', () => ({ confirmPayment: vi.
 vi.mock('../../src/shared/api/services/entryApi', () => ({ postEntry: vi.fn() }))
 vi.mock('../../src/shared/config/useLookups', () => ({ useLookups: () => ({ categories: [{ id: 'category', name: 'Science' }], platforms: [{ id: 'platform', name: 'Instagram' }] }) }))
 vi.mock('../../src/shared/api/redirect', () => ({ redirectToUrl: vi.fn() }))
+vi.mock('../../src/features/creator-entry/data/profileImage', () => ({ profileImageDataUrl: vi.fn(async () => 'data:image/webp;base64,recovered') }))
 const id = '019b7335-1979-4f83-b5f3-4a83e4bb1a96'
 function mount(cancelled = false, paymentId = id)
 {
@@ -23,6 +24,28 @@ function mount(cancelled = false, paymentId = id)
 }
 beforeEach(() => { vi.clearAllMocks(); localStorage.clear() })
 describe('payment results', () => {
+  it('recovers a paid entry with missing browser storage without opening another checkout', async () => {
+    vi.mocked(confirmPayment).mockResolvedValue({ id, name: 'Ada', status: 'paid', fulfilled: false, entryId: null, amount: 12.5, currency: 'usd', purpose: 'entry' })
+    vi.mocked(postEntry).mockResolvedValue({ id: 'creator', createdDate: '2026-10-04T00:00:00Z', name: 'Ada', username: 'recovered', imgUrl: 'data:image/webp;base64,recovered', score: 12.5, categories: [], socialMediaPlatforms: [] })
+    mount()
+    const user = userEvent.setup()
+    expect(await screen.findByRole('alert')).toHaveTextContent('browser form is unavailable')
+    expect(screen.getByLabelText('Paid creator name')).toHaveValue('Ada')
+    await user.type(screen.getByLabelText('Creator username'), 'recovered')
+    await user.selectOptions(screen.getByLabelText('Creator category'), 'Science')
+    await user.selectOptions(screen.getByLabelText('Social platform 1'), 'Instagram')
+    await user.type(screen.getByLabelText('Social profile URL 1'), 'https://instagram.com/recovered')
+    await user.upload(screen.getByLabelText('Profile image'), new File(['image'], 'avatar.png', { type: 'image/png' }))
+    await user.click(screen.getByRole('checkbox'))
+    for (const input of document.querySelectorAll<HTMLInputElement | HTMLSelectElement>('input, select')) {
+      expect(input.checkValidity(), `${input.type}: ${input.value}`).toBe(true)
+    }
+    await user.click(screen.getByRole('button', { name: 'Save paid entry' }))
+    expect(await screen.findByRole('heading', { name: 'Payment confirmed' })).toBeInTheDocument()
+    expect(postEntry).toHaveBeenCalledWith(expect.objectContaining({ name: 'Ada', username: 'recovered', score: 12.5, imgUrl: 'data:image/webp;base64,recovered' }), id)
+    expect(resumePayment).not.toHaveBeenCalled()
+    expect(redirectToUrl).not.toHaveBeenCalled()
+  })
   it('only shows confirmation after the backend has fulfilled the payment', async () => {
     vi.mocked(confirmPayment).mockResolvedValue({ id, status: 'paid', fulfilled: true, entryId: 'creator', amount: 12.5, currency: 'usd', purpose: 'entry' })
     const confirmed = mount()

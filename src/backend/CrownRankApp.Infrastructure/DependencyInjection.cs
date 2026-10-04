@@ -50,6 +50,14 @@ namespace CrownRankApp.Infrastructure
             services.AddSingleton(new StripeClient(string.IsNullOrWhiteSpace(stripe.SecretKey) ? "sk_test_unconfigured" : stripe.SecretKey));
             services.AddScoped<IPaymentGateway, StripePaymentGateway>();
             services.AddScoped<IPaymentService, PaymentService>();
+            var recovery = configuration.GetSection("PaymentRecovery").Get<PaymentRecoverySettings>() ?? new PaymentRecoverySettings();
+            if (recovery.PollSeconds is < 30 or > 3600 || recovery.RetryMinutes is < 1 or > 60
+                || recovery.StaleEntryMinutes is < 5 or > 1440 || recovery.BatchSize is < 1 or > 100)
+            {
+                throw new InvalidOperationException("Configure bounded PaymentRecovery polling intervals and batch size.");
+            }
+            services.AddSingleton(recovery);
+            services.AddScoped<PaymentReconciler>();
             return services;
         }
 

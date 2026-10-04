@@ -91,6 +91,11 @@ namespace CrownRankApp.Infrastructure.Data
 
             modelBuilder.Entity<CheckoutPayment>().Property(payment => payment.Amount).HasPrecision(18, 2);
             modelBuilder.Entity<CheckoutPayment>().HasIndex(payment => payment.SessionId).IsUnique();
+            modelBuilder.Entity<CheckoutPayment>().HasIndex(payment => new
+                {
+                    payment.FulfilledEntryId,
+                    payment.LastCheckedAt
+                });
 
             CategorySeeder.Seed(modelBuilder);
             SocialMediaSeeder.Seed(modelBuilder);

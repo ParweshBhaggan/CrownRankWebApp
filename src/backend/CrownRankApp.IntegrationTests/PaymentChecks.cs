@@ -152,6 +152,7 @@ static class PaymentChecks
                 }), "Invalid webhook signature is rejected");
         await Reject<InvalidWebhookException>(() => Task.Run(() => new StripePaymentGateway(new StripeClient("sk_test_placeholder"), stripe).VerifyWebhook("{}", "t=1,v1=invalid")),
             "Actual Stripe SDK rejects a forged signature");
+        await HardeningChecks.Run(options, gateway, creator.Id);
         await ApiChecks.Run(options);
     }
 

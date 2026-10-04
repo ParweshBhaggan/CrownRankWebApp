@@ -25,7 +25,7 @@ public sealed class PaymentSettings
 
 public sealed record CheckoutRequest(string Name, decimal Amount);
 public sealed record CheckoutResponse(Guid Id, string? Url, string Status);
-public sealed record PaymentResponse(Guid Id, string Status, bool Fulfilled, Guid? EntryId, decimal Amount, string Currency, string Purpose);
+public sealed record PaymentResponse(Guid Id, string Status, bool Fulfilled, Guid? EntryId, decimal Amount, string Currency, string Purpose, string? Name = null);
 public sealed record CheckoutContext(Guid ReferenceId, string Currency, DateTime CreatedAt, DateTime ExpiresAt, string FrontendUrl);
 public sealed record VerifiedCheckout(string SessionId, Guid ReferenceId, long AmountInCents, string Currency, string Status, bool Paid, bool LiveMode, string? Url, DateTime? PaidAt);
 

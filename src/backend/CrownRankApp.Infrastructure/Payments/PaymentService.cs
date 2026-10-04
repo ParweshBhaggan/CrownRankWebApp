@@ -249,6 +249,6 @@ public sealed class PaymentService(ApplicationDbContext context, IEntryServices 
 
     private static PaymentResponse ToResponse(CheckoutPayment payment, string status)
     {
-        return new PaymentResponse(payment.Id, status, payment.FulfilledEntryId.HasValue, payment.FulfilledEntryId, payment.Amount, payment.Currency, payment.Purpose);
+        return new PaymentResponse(payment.Id, status, payment.FulfilledEntryId.HasValue, payment.FulfilledEntryId, payment.Amount, payment.Currency, payment.Purpose, payment.Name);
     }
 }

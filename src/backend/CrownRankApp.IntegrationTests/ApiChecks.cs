@@ -4,6 +4,8 @@ using CrownRankApp.Application.Dtos.SocialMedia;
 using CrownRankApp.Application.Payments;
 using CrownRankApp.Infrastructure.Payments;
 using CrownRankApp.Infrastructure.Data;
+using CrownRankApp.API;
+using Microsoft.Extensions.Hosting;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
@@ -28,7 +30,8 @@ static class ApiChecks
                             ["Stripe:LiveMode"] = "false",
                             ["Payments:Currency"] = "usd",
                             ["Payments:MinimumAmount"] = "10",
-                            ["Payments:MaximumAmount"] = "10000"
+                            ["Payments:MaximumAmount"] = "10000",
+                            ["Admin:ApiKey"] = "integration-admin-secret-with-32-plus-characters"
                         }));
                 builder.ConfigureServices(services =>
                     {
@@ -36,6 +39,7 @@ static class ApiChecks
                         services.AddSingleton<IPaymentGateway>(gateway);
                         services.RemoveAll<DbContextOptions<ApplicationDbContext>>();
                         services.AddSingleton(options);
+                        services.Remove(services.Single(service => service.ServiceType == typeof(IHostedService) && service.ImplementationType == typeof(PaymentRecoveryWorker)));
                     });
             });
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
@@ -52,6 +56,31 @@ static class ApiChecks
         }
         var settings = await client.GetFromJsonAsync<PaymentSettings>("/api/payments/settings");
         Check(settings is { Currency: "usd", MinimumAmount: 10m, MaximumAmount: 10000m }, "API exposes configurable USD limits");
+        Check((await client.GetAsync("/health/live")).StatusCode == HttpStatusCode.OK
+                && (await client.GetAsync("/health/ready")).StatusCode == HttpStatusCode.OK, "Liveness and database readiness are public and healthy");
+        foreach (var route in new[]
+        {
+            "Entry",
+            "Category",
+            "SocialMediaDefault",
+            "SocialMediaPlatform"
+        })
+        {
+            Check((await client.DeleteAsync($"/api/{route}/{Guid.NewGuid()}")).StatusCode == HttpStatusCode.Unauthorized,
+                $"Anonymous {route} deletion is denied");
+        }
+        var categoryBody = new
+        {
+            name = "Protected admin category",
+            description = "Integration check"
+        };
+        Check((await client.PostAsJsonAsync("/api/Category", categoryBody)).StatusCode == HttpStatusCode.Unauthorized, "Anonymous category creation is denied");
+        client.DefaultRequestHeaders.Add("X-Admin-Key", "incorrect");
+        Check((await client.PostAsJsonAsync("/api/Category", categoryBody)).StatusCode == HttpStatusCode.Unauthorized, "Incorrect administrator key is denied");
+        client.DefaultRequestHeaders.Remove("X-Admin-Key");
+        client.DefaultRequestHeaders.Add("X-Admin-Key", "integration-admin-secret-with-32-plus-characters");
+        Check((await client.PostAsJsonAsync("/api/Category", categoryBody)).StatusCode == HttpStatusCode.Created, "Valid administrator key allows category management");
+        client.DefaultRequestHeaders.Remove("X-Admin-Key");
         var reference = Guid.NewGuid();
         await using var context = new ApplicationDbContext(options);
         var category = await context.Categories.FirstAsync();
@@ -88,6 +117,12 @@ static class ApiChecks
             {
             })).Content.ReadFromJsonAsync<PaymentResponse>();
         Check(confirmed is { Status: "paid", Fulfilled: false }, "Payment confirmation waits for the unchanged original form");
+        Check(confirmed!.Name == originalForm.Name, "Paid recovery exposes the original creator name without Stripe billing details");
+        var receiptHeaders = await client.PostAsJsonAsync($"/api/payments/{reference}/confirm", new
+            {
+            });
+        Check(receiptHeaders.Headers.CacheControl?.NoStore == true && receiptHeaders.Headers.GetValues("Referrer-Policy").Single() == "no-referrer",
+            "Payment responses prevent caching and referral leakage");
         var result = await client.PostAsJsonAsync($"/api/Entry?paymentId={reference}", originalForm);
         var entry = await result.Content.ReadFromJsonAsync<EntryResponseDto>();
         Check(result.StatusCode == HttpStatusCode.Created && entry!.Score == 10.50m && entry.ImgUrl == image,

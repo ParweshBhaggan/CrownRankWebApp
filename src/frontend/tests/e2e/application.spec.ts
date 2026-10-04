@@ -2,6 +2,44 @@ import { expect, test } from '@playwright/test'
 
 let paymentId = '019b7335-1979-4f83-b5f3-4a83e4bb1a96'
 const boostId = '019b7335-1979-4f83-b5f3-4a83e4bb1a97'
+test('a paid entry can be recovered without browser storage or another checkout', async ({ page }) => {
+  const id = '019b7335-1979-4f83-b5f3-4a83e4bb1a98'
+  let submitted: Record<string, unknown> | undefined
+  let checkoutRequests = 0
+  await page.route(/^https?:\/\/[^/]+\/api\//, async route => {
+    const request = route.request()
+    const path = new URL(request.url()).pathname
+    if (path.includes('checkout')) checkoutRequests++
+    if (path === '/api/payments/settings') return route.fulfill({ json: { currency: 'usd', minimumAmount: 10, maximumAmount: 10000 } })
+    if (path === '/api/Category') return route.fulfill({ json: [{ id: 'science', name: 'Science' }] })
+    if (path === '/api/SocialMediaDefault') return route.fulfill({ json: [{ id: 'instagram', name: 'Instagram' }] })
+    if (path === '/api/Entry/daily' || (path === '/api/Entry' && request.method() === 'GET')) return route.fulfill({ json: [] })
+    if (path === `/api/payments/${id}/confirm`) return route.fulfill({ json: { id, name: 'Recovered creator', status: 'paid', fulfilled: Boolean(submitted), entryId: submitted ? id : null, amount: 10, currency: 'usd', purpose: 'entry' } })
+    if (path === '/api/Entry' && request.method() === 'POST') {
+      expect(new URL(request.url()).searchParams.get('paymentId')).toBe(id)
+      submitted = request.postDataJSON()
+      expect(submitted).toMatchObject({ name: 'Recovered creator', username: 'recovered', score: 10 })
+      expect(submitted?.imgUrl).toMatch(/^data:image\/webp;base64,/)
+      return route.fulfill({ status: 201, json: { ...submitted, id, createdDate: new Date().toISOString() } })
+    }
+    throw new Error(`Unexpected recovery request: ${request.method()} ${path}`)
+  })
+  await page.goto(`/payment/success?payment_id=${id}`)
+  await expect(page.getByText('The original browser form is unavailable.', { exact: false })).toBeVisible()
+  await expect(page.getByLabel('Paid creator name')).toHaveValue('Recovered creator')
+  await page.getByLabel('Creator username').fill('recovered')
+  await page.getByLabel('Creator category').selectOption('Science')
+  await page.getByLabel('Social platform 1').selectOption('Instagram')
+  await page.getByLabel('Social profile URL 1').fill('https://instagram.com/recovered')
+  await page.getByLabel('Profile image', { exact: true }).setInputFiles({ name: 'avatar.png', mimeType: 'image/png',
+    buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aL1sAAAAASUVORK5CYII=', 'base64') })
+  await page.getByRole('checkbox').check()
+  await page.getByRole('button', { name: 'Save paid entry' }).click()
+  await expect(page.getByRole('heading', { name: 'Payment confirmed' })).toBeVisible()
+  expect(checkoutRequests).toBe(0)
+  expect(submitted).toBeDefined()
+})
+
 test('entry and boost checkout update rankings only after confirmed payment', async ({ page }) => {
   const entries = [{
     id: 'entry-1', name: 'Ada Lovelace', username: 'ada', score: 10,

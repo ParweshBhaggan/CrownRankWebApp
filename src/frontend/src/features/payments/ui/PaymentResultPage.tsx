@@ -3,7 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { confirmPayment, resumePayment } from '../../../shared/api/services/paymentApi'
 import type { PaymentResponse } from '../../../shared/api/models/payment'
 import { formatCurrency } from '../../../shared/format/currency'
-import { completePaidEntry, getPendingEntry } from '../../creator-entry/data/pendingEntry'
+import { completePaidEntry } from '../../creator-entry/data/pendingEntry'
 import { PaidEntryEditor } from '../../creator-entry/ui/PaidEntryEditor'
 import { continueToCheckout } from '../application'
 
@@ -72,8 +72,8 @@ export function PaymentResultPage({ cancelled = false, onConfirmed }: { cancelle
             : 'We are checking payment and saving your contribution. Keep this page open until your entry is saved.'}</p>
           {payment?.status === 'paid' && <p>Payment received. Your ranking update is still processing.</p>}
           {error && <p role="alert">{error}</p>}
-          {error && payment?.status === 'paid' && payment.purpose === 'entry' && getPendingEntry(id) &&
-            <PaidEntryEditor paymentId={id} onRetry={() => setRevision(value => value + 1)} />}
+          {error && payment?.status === 'paid' && payment.purpose === 'entry' &&
+            <PaidEntryEditor key={id} paymentId={id} payment={payment} onRetry={() => setRevision(value => value + 1)} />}
           {!terminal && <button className="secondary-button" onClick={() => setRevision(value => value + 1)}>Check again</button>}
           {cancelled && payment?.status === 'pending' && <button className="primary-button" disabled={busy} onClick={resume}>
             {busy ? 'Opening checkout…' : 'Resume checkout'}

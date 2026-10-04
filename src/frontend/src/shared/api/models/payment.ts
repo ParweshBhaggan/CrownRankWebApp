@@ -13,6 +13,7 @@ export interface CheckoutResponse {
   readonly status: string
 }
 export interface PaymentResponse {
+  readonly name?: string
   readonly id: string
   readonly status: string
   readonly fulfilled: boolean

@@ -80,4 +80,10 @@ public sealed class CheckoutPayment
         get;
         set;
     }
+
+    public DateTime? LastCheckedAt
+    {
+        get;
+        set;
+    }
 }
