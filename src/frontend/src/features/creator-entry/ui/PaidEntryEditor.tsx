@@ -34,7 +34,7 @@ export function PaidEntryEditor({ paymentId, payment, onRetry }: { paymentId: st
   }
 
   return (
-    <form onSubmit={submit}>
+    <form aria-label="Recover paid entry" onSubmit={submit}>
       <p>Your payment is saved. Correct your entry details and retry registration without paying again.</p>
       {!entry.imgUrl && <p>The original browser form is unavailable. Re-enter your details to use this existing paid checkout.</p>}
       <label>Paid creator name

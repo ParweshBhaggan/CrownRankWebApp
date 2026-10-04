@@ -24,7 +24,6 @@ namespace CrownRankApp.Infrastructure.Migrations
             modelBuilder.Entity("CrownRankApp.Domain.Models.CheckoutPayment", b =>
                 {
                     b.Property<DateTime?>("LastCheckedAt").HasColumnType("timestamp with time zone");
-                    b.HasIndex("FulfilledEntryId", "LastCheckedAt");
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
@@ -58,6 +57,7 @@ namespace CrownRankApp.Infrastructure.Migrations
                     b.Property<Guid?>("FulfilledEntryId")
                         .HasColumnType("uuid");
                     b.HasKey("Id");
+                    b.HasIndex("FulfilledEntryId", "LastCheckedAt");
                     b.HasIndex("SessionId").IsUnique();
                     b.ToTable("CheckoutPayments");
                 });
