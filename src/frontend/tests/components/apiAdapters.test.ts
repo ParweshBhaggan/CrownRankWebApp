@@ -2,13 +2,17 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { apiRequest, resolveApiAsset } from '../../src/shared/api/httpClient'
 import { createEntry } from '../../src/features/creator-entry/data/createEntry'
 import { ApiLeaderboardRepository } from '../../src/features/leaderboard/data/ApiLeaderboardRepository'
-import { ScoreBoostGateway } from '../../src/features/payments/data/ScoreBoostGateway'
+import { StripeCheckoutGateway } from '../../src/features/payments/data/StripeCheckoutGateway'
 import type { RankingEntryDraft } from '../../src/features/creator-entry/domain/rankingEntry'
 
 vi.mock('../../src/features/creator-entry/data/profileImage', () => ({ profileImageDataUrl: vi.fn(async () => 'data:image/webp;base64,test') }))
 
+vi.mock('../../src/shared/api/redirect', () => ({ redirectToUrl: vi.fn() }))
+import { getPendingEntry } from '../../src/features/creator-entry/data/pendingEntry'
+import { redirectToUrl } from '../../src/shared/api/redirect'
+
 const originalFetch = globalThis.fetch
-afterEach(() => { globalThis.fetch = originalFetch })
+afterEach(() => { globalThis.fetch = originalFetch; localStorage.clear() })
 
 describe('frontend API adapters', () => {
   it('returns JSON and no-content and reports validation details', async () => {
@@ -39,7 +43,7 @@ describe('frontend API adapters', () => {
       requests.push({ url, init })
       if (url === '/api/Category') return Response.json([{ id: 'science-id', name: 'New science category' }])
       if (url === '/api/SocialMediaDefault') return Response.json([{ id: 'social-id', name: 'New platform' }])
-      return Response.json({ id: 'entry-1' }, { status: 201 })
+      return Response.json({ id: 'ui-reference', url: 'https://checkout.stripe.com/test', status: 'pending' })
     }
     const draft = {
       name: ' Ada Lovelace ', username: ' ada ', category: 'science-id', contribution: 12.5,
@@ -47,13 +51,46 @@ describe('frontend API adapters', () => {
       profileImage: new File(['image'], 'profile.png', { type: 'image/png' }),
     } satisfies RankingEntryDraft
     await createEntry(draft, 'ui-reference')
-    expect(requests.map(request => request.url)).toEqual(['/api/Category', '/api/SocialMediaDefault', '/api/Entry'])
+    expect(requests.map(request => request.url)).toEqual(['/api/Category', '/api/SocialMediaDefault', '/api/payments/entry-checkout/ui-reference'])
     expect(requests[2].init?.headers).toEqual({ 'Content-Type': 'application/json' })
-    expect(JSON.parse(String(requests[2].init?.body))).toEqual({
+    expect(JSON.parse(String(requests[2].init?.body))).toEqual({ name: 'Ada Lovelace', amount: 12.5 })
+    expect(redirectToUrl).toHaveBeenCalledWith('https://checkout.stripe.com/test')
+    expect(getPendingEntry('ui-reference')).toEqual({
       name: 'Ada Lovelace', username: 'ada', imgUrl: 'data:image/webp;base64,test', score: 12.5,
       categories: [{ name: 'New science category', description: '' }],
       socialMediaPlatforms: [{ platformName: 'New platform', url: 'https://example.com/ada' }],
     })
+  })
+
+  it('retains the original image and checkout details after an uncertain network response', async () => {
+    const checkoutBodies: unknown[] = []
+    globalThis.fetch = async (input, init) => {
+      if (String(input) === '/api/Category') return Response.json([{ id: 'science', name: 'Science' }])
+      if (String(input) === '/api/SocialMediaDefault') return Response.json([])
+      checkoutBodies.push(JSON.parse(String(init?.body)))
+      if (checkoutBodies.length === 1) throw new TypeError('Lost response')
+      return Response.json({ id: 'reference', url: 'https://checkout.stripe.com/recovered', status: 'pending' })
+    }
+    const draft = { name: 'Original name', username: 'creator', category: 'science', contribution: 12.5,
+      socialLinks: [], profileImage: new File(['image'], 'avatar.png', { type: 'image/png' }) }
+    await expect(createEntry(draft, 'reference')).rejects.toThrow('interrupted')
+    await createEntry({ ...draft, name: 'Changed after interruption', contribution: 25 }, 'reference')
+    expect(checkoutBodies).toEqual([{ name: 'Original name', amount: 12.5 }, { name: 'Original name', amount: 12.5 }])
+    expect(getPendingEntry('reference')?.imgUrl).toBe('data:image/webp;base64,test')
+  })
+
+  it('stops before checkout when browser storage cannot retain the original form', async () => {
+    const stored = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('Storage quota') })
+    const urls: string[] = []
+    globalThis.fetch = async input => {
+      urls.push(String(input))
+      return String(input) === '/api/Category' ? Response.json([{ id: 'science', name: 'Science' }]) : Response.json([])
+    }
+    try {
+      await expect(createEntry({ name: 'Creator', username: 'creator', category: 'science', contribution: 10,
+        socialLinks: [], profileImage: new File(['image'], 'avatar.png', { type: 'image/png' }) }, 'reference')).rejects.toThrow('browser could not save')
+      expect(urls.some(url => url.includes('checkout'))).toBe(false)
+    } finally { stored.mockRestore() }
   })
 
   it('maps entries including multiple categories and preserves backend ranking order', async () => {
@@ -89,12 +126,13 @@ describe('frontend API adapters', () => {
     expect(daily[0]).toMatchObject({ totalContributed: 2.5, dailyContributed: 2.5, scoreReachedAt: '2026-09-30T12:00:00Z' })
   })
 
-  it('boosts the selected entry with a decimal amount and a stable retry reference', async () => {
-    globalThis.fetch = vi.fn(async () => Response.json({ score: 12.5 }))
-    const request = { referenceId: 'ref', creatorId: 'entry', purpose: 'creator-boost', amount: 2.5, currency: 'EUR' } as const
-    await expect(new ScoreBoostGateway().createCheckout(request)).resolves.toEqual({ id: 'ref', confirmed: true })
-    expect(globalThis.fetch).toHaveBeenCalledWith('/api/Entry/entry/boost', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ amount: 2.5, referenceId: 'ref' }),
+  it('starts boost checkout with only name and amount and a stable retry reference', async () => {
+    globalThis.fetch = vi.fn(async () => Response.json({ id: 'ref', url: 'https://checkout.stripe.com/boost', status: 'pending' }))
+    const request = { referenceId: 'ref', creatorId: 'entry', amount: 12.5 } as const
+    await expect(new StripeCheckoutGateway().createCheckout(request)).resolves.toEqual({ id: 'ref', url: 'https://checkout.stripe.com/boost', status: 'pending' })
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/payments/entries/entry/boost-checkout/ref', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'CrownRank creator boost', amount: 12.5 }),
     })
   })
 })
+

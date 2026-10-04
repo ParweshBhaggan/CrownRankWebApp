@@ -1,13 +1,13 @@
-import { postEntry, testPayment } from '../../../shared/api/services/entryApi'
+import { startEntryCheckout } from '../../../shared/api/services/paymentApi'
+import { getPendingEntry, savePendingEntry } from './pendingEntry'
+import { continueToCheckout } from '../../payments/application'
 import { getCategories } from '../../../shared/api/services/categoryApi'
 import { getSocialMediaDefaults } from '../../../shared/api/services/socialMediaDefaultApi'
 import { profileImageDataUrl } from './profileImage'
 import type { RankingEntryDraft } from '../domain/rankingEntry'
-import { redirectToUrl } from '../../../shared/api/redirect'
 
 export async function createEntry(draft: RankingEntryDraft, entryReference: string): Promise<void>
 {
-  void entryReference
   if (!draft.profileImage) throw new Error('A profile image is required.')
 
   const [categories, platforms] = await Promise.all([getCategories(), getSocialMediaDefaults()])
@@ -17,16 +17,16 @@ export async function createEntry(draft: RankingEntryDraft, entryReference: stri
     throw new Error('A selected social platform is not currently available.')
   }
 
-  await postEntry({
+  const entry = getPendingEntry(entryReference) ?? {
     name: draft.name.trim(),
     username: draft.username.trim(),
     imgUrl: await profileImageDataUrl(draft.profileImage),
     score: draft.contribution,
     categories: [{ name: selected.name, description: selected.description ?? '' }],
     socialMediaPlatforms: draft.socialLinks.map((link) => ({ platformName: link.platform, url: link.url.trim() })),
-  })
+  }
 
- 
-
-
+  savePendingEntry(entryReference, entry)
+  const checkout = await startEntryCheckout(entryReference, { name: entry.name, amount: entry.score })
+  continueToCheckout(checkout)
 }

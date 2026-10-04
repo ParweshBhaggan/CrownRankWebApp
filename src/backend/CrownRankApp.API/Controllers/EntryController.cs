@@ -1,4 +1,6 @@
 using CrownRankApp.Application.Dtos.Entry;
+using CrownRankApp.Application.Payments;
+using Microsoft.AspNetCore.RateLimiting;
 using CrownRankApp.Application.Services.Entry;
 using CrownRankApp.Domain.Models;
 using Microsoft.AspNetCore.Mvc;
@@ -7,7 +9,7 @@ namespace CrownRankApp.API.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    public class EntryController(IEntryServices service) : ControllerBase
+    public class EntryController(IEntryServices service, IPaymentService payments) : ControllerBase
     {
         [HttpGet]
         [EndpointSummary("Get all entries")]
@@ -40,15 +42,32 @@ namespace CrownRankApp.API.Controllers
         [EndpointSummary("Add a new entry")]
         [EndpointDescription("Adds a new entry to the system.")]
         [ProducesResponseType(typeof(EntryResponseDto), StatusCodes.Status201Created)]
-        public async Task<ActionResult<EntryResponseDto>> AddEntry([FromBody] EntryResponseDto dto)
+        [PaymentErrorFilter]
+        [EnableRateLimiting("payments")]
+        public async Task<ActionResult<EntryResponseDto>> AddEntry([FromBody] EntryResponseDto dto, [FromQuery] Guid paymentId, CancellationToken ct)
         {
             try
             {
-                var entry = await service.CreateAsync(dto);
-                return CreatedAtAction(nameof(GetEntryById), new { id = entry.Id }, EntryResponseDto.FromEntry(entry));
+                var entry = await payments.RegisterEntryAsync(paymentId, dto, ct);
+                return CreatedAtAction(nameof(GetEntryById), new
+                    {
+                        id = entry.Id
+                    }, entry);
             }
-            catch (ArgumentException exception) { return BadRequest(new { error = exception.Message }); }
-            catch (InvalidOperationException exception) { return Conflict(new { error = exception.Message }); }
+            catch (ArgumentException exception)
+            {
+                return BadRequest(new
+                    {
+                        error = exception.Message
+                    });
+            }
+            catch (InvalidOperationException exception)
+            {
+                return Conflict(new
+                    {
+                        error = exception.Message
+                    });
+            }
         }
 
         [HttpPost("{id:guid}/boost")]
@@ -57,16 +76,29 @@ namespace CrownRankApp.API.Controllers
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status409Conflict)]
-        public async Task<ActionResult<EntryResponseDto>> BoostScore(Guid id, [FromBody] BoostScoreDto dto)
+        [PaymentErrorFilter]
+        [EnableRateLimiting("payments")]
+        public async Task<ActionResult<EntryResponseDto>> BoostScore(Guid id, [FromBody] BoostScoreDto dto, [FromQuery] Guid paymentId, CancellationToken ct)
         {
             try
             {
-                var entry = await service.BoostScoreAsync(id, dto.Amount, dto.ReferenceId);
-                if (entry == null) return NotFound();
-                return Ok(EntryResponseDto.FromEntry(entry));
+                var entry = await payments.RegisterBoostAsync(paymentId, id, ct);
+                return Ok(entry);
             }
-            catch (ArgumentException exception) { return BadRequest(new { error = exception.Message }); }
-            catch (InvalidOperationException exception) { return Conflict(new { error = exception.Message }); }
+            catch (ArgumentException exception)
+            {
+                return BadRequest(new
+                    {
+                        error = exception.Message
+                    });
+            }
+            catch (InvalidOperationException exception)
+            {
+                return Conflict(new
+                    {
+                        error = exception.Message
+                    });
+            }
         }
 
         [HttpGet("daily")]
@@ -75,7 +107,13 @@ namespace CrownRankApp.API.Controllers
         public async Task<ActionResult<List<DailyEntryResponseDto>>> GetDaily([FromQuery] DateOnly? date)
         {
             var selected = date ?? DateOnly.FromDateTime(DateTime.UtcNow);
-            if (selected == DateOnly.MaxValue) return BadRequest(new { error = "Date is out of range." });
+            if (selected == DateOnly.MaxValue)
+            {
+                return BadRequest(new
+                    {
+                        error = "Date is out of range."
+                    });
+            }
             return Ok(await service.GetDailyAsync(selected));
         }
 
@@ -84,6 +122,7 @@ namespace CrownRankApp.API.Controllers
         [EndpointDescription("Deletes an existing entry by its unique identifier.")]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [PaymentErrorFilter]
         public async Task<ActionResult> DeleteEntry(Guid id)
         {
             var deleted = await service.DeleteAsync(id);

@@ -1,3 +1,5 @@
+Payment integration based on `recovery_point/working_application`: see [Stripe setup and flow](docs/stripe-payments.md). Images keep the recovery branch's existing data URL handling; checkout takes only name and amount.
+
 # CrownRank
 
 CrownRank uses React/TypeScript, ASP.NET Core (.NET 10), EF Core, and PostgreSQL.
@@ -27,10 +29,10 @@ Vite proxies `/api` to `http://localhost:5169`. For a direct API connection, set
 ## Current flow
 
 - Categories and social platform options come from the backend, including newly added options.
-- Entry submission sends JSON to `/api/Entry`. An opening amount of €12.50 becomes `score: 12.5`; no payment provider is called or money charged.
+- Entry checkout sends only name and amount to Stripe through the original backend. After verification, the existing form posts to `/api/Entry?paymentId=...`; a verified $12.50 payment becomes `score: 12.5`.
 - The entry, selected existing categories, and social links are saved together. Invalid selections return a validation error; existing usernames return a conflict.
 - The board loads all entries, orders them by score descending, and refreshes after submission. An entry belonging to several categories appears in each category.
-- Boosts call `POST /api/Entry/{id}/boost` and add a positive decimal amount to the current score. No payment is processed. Zero, negative amounts, fractional cents, and amounts above 10000 are rejected. The UI retains its existing €1 minimum.
+- Boost checkout redirects to Stripe and applies a verified payment through the existing boost service. Default limits are $10–$10,000, configurable in appsettings; negative values and fractional cents are rejected.
 - Global rankings sort by score descending, then `UpdatedDate ?? CreatedDate` ascending, then ID. Equal scores therefore prefer the entry that reached its score first. The frontend preserves this order.
 - Daily rankings call `GET /api/Entry/daily?date=YYYY-MM-DD` and sum opening scores plus boosts added during that UTC calendar day. Equal daily scores prefer the earlier last addition timestamp, then entry ID. Global scores never reset.
 - Each addition is stored in one small `ScoreAdditions` table. Boosts increment the total in SQL and save history in the same transaction, protecting against concurrent lost updates. The frontend sends a stable `referenceId` so retries do not credit the same boost twice.
@@ -83,3 +85,4 @@ npm run test:e2e
 CI runs PostgreSQL integration checks for migrations, opening additions, positive-only boost validation, decimal accuracy, global and daily tie ordering, historical isolation, UTC midnight boundaries, concurrent boosts, and sequential/concurrent retry deduplication. The checks create a separate disposable database and never modify the database named in the supplied connection string.
 
 Browser tests intercept API responses and verify registration, direct boost submission, leaderboard refresh, category filtering, and daily scores that differ from global totals.
+

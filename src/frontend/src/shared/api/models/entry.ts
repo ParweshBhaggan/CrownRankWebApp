@@ -1,14 +1,3 @@
-export interface TestPaymentRequest
-{
-  readonly Name : string
-  readonly Price: number
-}
-
-export interface TestPaymentResponse
-{
-  readonly url: string
-}
-
 export interface CreateEntryRequest {
   readonly name: string
   readonly username: string
@@ -34,3 +23,4 @@ export interface BoostEntryRequest {
   readonly amount: number
   readonly referenceId: string
 }
+

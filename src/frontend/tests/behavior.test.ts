@@ -5,15 +5,15 @@ import { rankCreators } from '../src/features/leaderboard/application/rankCreato
 import { validateRankingEntry } from '../src/features/creator-entry/application/validateRankingEntry'
 import { archivedDateKeys, resolveDailyDate, todayKey } from '../src/features/leaderboard/application/dailyDates'
 
-test('decimal amounts retain cent precision and display in euros', () => {
+test('decimal amounts retain cent precision and display in dollars', () => {
   assert.equal(parseAmount('12.50'), 12.5)
-  assert.equal(parseAmount('1.01'), 1.01)
+  assert.equal(parseAmount('10.01'), 10.01)
   assert.equal(parseAmount('10000.00'), 10000)
-  assert.match(formatCurrency(12.5), /€12\.50|12\.50\s*€/)
+  assert.match(formatCurrency(12.5), /\$12\.50/)
 })
 
 test('invalid or out-of-range amounts are rejected instead of rounded', () => {
-  for (const value of ['', '0', '-1', '1.001', '10000.01', 'Infinity', 'NaN', '1e2']) assert.ok(Number.isNaN(parseAmount(value)), value)
+  for (const value of ['', '0', '9.99', '-1', '1.001', '10000.01', 'Infinity', 'NaN', '1e2']) assert.ok(Number.isNaN(parseAmount(value)), value)
 })
 
 test('ranking preserves authoritative API order without mutating creators', () => {
@@ -49,3 +49,4 @@ test('daily dates are UTC-stable and invalid or future archive routes fall back 
     assert.equal(resolveDailyDate(invalid, now), '2026-03-01')
   }
 })
+
