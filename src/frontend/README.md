@@ -41,7 +41,7 @@ const url = await apiGet<string>(checkout_endpoint)
 redirectToUrl(url)
 ```
 
-If it returns `{ url: string }`, read that response model and pass `response.url` instead. No checkout endpoint or payment redirect is active in the current score flow.
+If it returns `{ url: string }`, read that response model and pass `response.url` instead. Checkout endpoints return a Stripe URL; the payment feature redirects explicitly and verifies payment on the return page. See ../../docs/stripe-payments.md.
 
 ## Formatting and checks
 
@@ -57,3 +57,4 @@ npm run test:e2e
 ```
 
 The formatter expands JSX and compound statements, uses parenthesized arrow parameters, and places function and class opening braces on the next line. Simple expressions stay compact; complex JSX returns use `(parameters) => (...)`. Named props interfaces keep component parameter lists readable. Use `npm run format` to preserve this style; direct Prettier formatting alone uses a different brace style.
+

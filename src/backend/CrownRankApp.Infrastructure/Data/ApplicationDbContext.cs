@@ -6,11 +6,41 @@ namespace CrownRankApp.Infrastructure.Data
 {
     public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : DbContext(options)
     {
-        public DbSet<ScoreAddition> ScoreAdditions { get; set; }
-        public DbSet<Entry> Entries { get; set; }
-        public DbSet<Category> Categories { get; set; }
-        public DbSet<SocialMediaDefault> SocialMediaDefaults { get; set; }
-        public DbSet<SocialMediaPlatform> SocialMediaPlatforms { get; set; }
+        public DbSet<CheckoutPayment> CheckoutPayments
+        {
+            get;
+            set;
+        }
+
+        public DbSet<ScoreAddition> ScoreAdditions
+        {
+            get;
+            set;
+        }
+
+        public DbSet<Entry> Entries
+        {
+            get;
+            set;
+        }
+
+        public DbSet<Category> Categories
+        {
+            get;
+            set;
+        }
+
+        public DbSet<SocialMediaDefault> SocialMediaDefaults
+        {
+            get;
+            set;
+        }
+
+        public DbSet<SocialMediaPlatform> SocialMediaPlatforms
+        {
+            get;
+            set;
+        }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -53,7 +83,14 @@ namespace CrownRankApp.Infrastructure.Data
                 .HasOne(addition => addition.Entry).WithMany()
                 .HasForeignKey(addition => addition.EntryId).OnDelete(DeleteBehavior.Cascade);
             modelBuilder.Entity<ScoreAddition>().Property(addition => addition.Amount).HasPrecision(18, 2);
-            modelBuilder.Entity<ScoreAddition>().HasIndex(addition => new { addition.CreatedDate, addition.EntryId });
+            modelBuilder.Entity<ScoreAddition>().HasIndex(addition => new
+                {
+                    addition.CreatedDate,
+                    addition.EntryId
+                });
+
+            modelBuilder.Entity<CheckoutPayment>().Property(payment => payment.Amount).HasPrecision(18, 2);
+            modelBuilder.Entity<CheckoutPayment>().HasIndex(payment => payment.SessionId).IsUnique();
 
             CategorySeeder.Seed(modelBuilder);
             SocialMediaSeeder.Seed(modelBuilder);

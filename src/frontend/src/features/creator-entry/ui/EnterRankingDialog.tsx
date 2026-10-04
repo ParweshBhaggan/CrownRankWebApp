@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 import { type CreatorCategory, type SocialPlatform } from '../../leaderboard/domain/creator'
 import { useLookups } from '../../../shared/config/useLookups'
+import { ApiError } from '../../../shared/api/httpClient'
+import { getPendingEntry } from '../data/pendingEntry'
 import { createEntry } from '../data/createEntry'
-import { formatCurrency, parseAmount } from '../../../shared/format/currency'
+import { formatCurrency, parseAmount, amountRange } from '../../../shared/format/currency'
 import { validateRankingEntry } from '../application/validateRankingEntry'
 import type { RankingEntryValidationErrors, SocialLinkInput } from '../domain/rankingEntry'
 
@@ -13,9 +15,9 @@ interface Props {
 }
 const createSocialLink = (): SocialLinkInput => ({ id: crypto.randomUUID(), platform: '', url: '' })
 
-export function EnterRankingDialog({ isOpen, onClose, onConfirmed }: Props)
+export function EnterRankingDialog({ isOpen, onClose }: Props)
 {
-  const { categories, platforms, loading: optionsLoading, error: optionsError, retry: retryOptions } = useLookups()
+  const { categories, platforms, paymentSettings, loading: optionsLoading, error: optionsError, retry: retryOptions } = useLookups()
   const dialogRef = useRef<HTMLDialogElement>(null)
   const [name, setName] = useState('')
   const [username, setUsername] = useState('')
@@ -27,6 +29,7 @@ export function EnterRankingDialog({ isOpen, onClose, onConfirmed }: Props)
   const [acceptedTerms, setAcceptedTerms] = useState(false)
   const [errors, setErrors] = useState<RankingEntryValidationErrors>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [frozen, setFrozen] = useState(false)
   const [checkoutReady, setCheckoutReady] = useState(false)
   const [submitError, setSubmitError] = useState('')
   const submitting = useRef(false)
@@ -77,10 +80,14 @@ export function EnterRankingDialog({ isOpen, onClose, onConfirmed }: Props)
     setSubmitError('')
     setIsSubmitting(true)
     try {
+      setFrozen(true)
       await createEntry({ name, username, category, socialLinks, profileImage, contribution }, entryReference.current)
-      onConfirmed()
       setCheckoutReady(true)
     } catch (error) {
+      if (!getPendingEntry(entryReference.current) || (error instanceof ApiError && error.status === 400)) {
+        setFrozen(false)
+        if (error instanceof ApiError && error.status === 400) entryReference.current = crypto.randomUUID()
+      }
       setSubmitError(error instanceof Error ? error.message : 'Could not submit your entry. Please retry.')
     } finally {
       submitting.current = false
@@ -111,10 +118,10 @@ export function EnterRankingDialog({ isOpen, onClose, onConfirmed }: Props)
         {checkoutReady ? (
           <div className="success-state" role="status">
             <span className="success-mark">✓</span>
-            <p className="eyebrow">Entry saved</p>
-            <h2>You’re ready for the crown.</h2>
+            <p className="eyebrow">Stripe checkout</p>
+            <h2>Checkout ready.</h2>
             <p>
-              Your profile is now on the leaderboard. Your opening amount was saved as your score. No money was charged.
+              Stripe checkout is opening. Your profile is added after successful payment.
             </p>
             <button className="primary-button" type="button" onClick={closeDialog}>
               Back to leaderboard
@@ -138,14 +145,14 @@ export function EnterRankingDialog({ isOpen, onClose, onConfirmed }: Props)
             )}
             <fieldset
               disabled={
-                isSubmitting || optionsLoading || Boolean(optionsError) || !categories.length || !platforms.length
+                frozen || isSubmitting || optionsLoading || Boolean(optionsError) || !categories.length || !platforms.length
               }
               className="entry-fields"
             >
               <header className="dialog-heading">
                 <p className="eyebrow">Enter the ranking</p>
                 <h2>Put your name on the board.</h2>
-                <p>No account needed. Choose your amount, add your creator profile, and submit your starting score.</p>
+                <p>No account needed. Choose your amount, add your creator profile, and continue to Stripe Checkout.</p>
               </header>
               <div className="form-layout">
                 <div className="form-main">
@@ -274,12 +281,12 @@ export function EnterRankingDialog({ isOpen, onClose, onConfirmed }: Props)
                   <p className="eyebrow">Your opening contribution</p>
                   <label htmlFor="amount">Choose your amount</label>
                   <div className="amount-input">
-                    <span>€</span>
+                    <span>{paymentSettings.currency.toUpperCase()}</span>
                     <input
                       id="amount"
                       type="number"
-                      min="1"
-                      max="10000"
+                      min={paymentSettings.minimumAmount}
+                      max={paymentSettings.maximumAmount}
                       step="0.01"
                       value={amount}
                       onChange={(event) => setAmount(event.target.value)}
@@ -287,14 +294,14 @@ export function EnterRankingDialog({ isOpen, onClose, onConfirmed }: Props)
                     />
                   </div>
                   <div className="quick-amounts" aria-label="Suggested amounts">
-                    {[10, 25, 50, 100].map((value) => (
+                    {[10, 25, 50, 100].filter(value => value >= paymentSettings.minimumAmount && value <= paymentSettings.maximumAmount).map((value) => (
                       <button
                         className={amount === String(value) ? 'selected' : ''}
                         key={value}
                         type="button"
                         onClick={() => setAmount(String(value))}
                       >
-                        €{value}
+                        {formatCurrency(value)}
                       </button>
                     ))}
                   </div>
@@ -318,6 +325,7 @@ export function EnterRankingDialog({ isOpen, onClose, onConfirmed }: Props)
                 </aside>
               </div>
             </fieldset>
+            <p>Contribution range: {amountRange(paymentSettings)}</p>
             {submitError && (
               <p role="alert" className="field-error">
                 {submitError}
@@ -330,7 +338,7 @@ export function EnterRankingDialog({ isOpen, onClose, onConfirmed }: Props)
                 isSubmitting || optionsLoading || Boolean(optionsError) || !categories.length || !platforms.length
               }
             >
-              {isSubmitting ? 'Saving entry…' : `Submit with ${formatCurrency(parseAmount(amount))}`}
+              {isSubmitting ? 'Opening Stripe…' : `Continue to payment · ${formatCurrency(parseAmount(amount))}`}
             </button>
             <p className="secure-note">No payment required · The amount becomes your starting score.</p>
           </form>
@@ -339,3 +347,4 @@ export function EnterRankingDialog({ isOpen, onClose, onConfirmed }: Props)
     </dialog>
   )
 }
+
