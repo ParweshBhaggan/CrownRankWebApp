@@ -61,7 +61,7 @@ Example submission:
 }
 ```
 
-The current API accepts `imgUrl`, not a multipart upload. The frontend resizes uploaded images to fit within 300×250, preserves their aspect ratio, and stores the resulting WebP data URL in `imgUrl`. A dedicated server asset upload service remains future work. Frontend image inputs accept JPG, PNG, and WebP up to 5 MB.
+The current API accepts `imgUrl`, not a multipart upload. The frontend now keeps uploaded images up to 1200×1000, preserves their aspect ratio, uses high-quality canvas scaling, and stores a WebP data URL at 92% quality in `imgUrl`. This avoids enlarging a tiny 200–300px source on the creator profile page. A dedicated server asset upload service remains future work. Frontend image inputs accept JPG, PNG, and WebP up to 5 MB.
 
 Entry API responses use DTOs to avoid serializing circular EF navigation properties. Apply the new `AddScoreAdditions` migration with the `dotnet ef database update` command above before starting this version. Existing entry totals remain unchanged. Daily history starts with additions recorded after this migration; older entries appear in daily rankings when boosted, and their pre-migration opening totals are not invented as historical additions.
 
@@ -86,3 +86,7 @@ CI runs PostgreSQL integration checks for migrations, opening additions, positiv
 
 Browser tests intercept API responses and verify registration, direct boost submission, leaderboard refresh, category filtering, and daily scores that differ from global totals.
 
+
+## Endpoint logs
+
+The API writes one JSON-formatted line per request into date-based text files under `src/backend/CrownRankApp.API/Logs`. Backend request activity is stored in `Logs/Backend/YYYY-MM-DD.txt`. Requests made through the React API client are marked with `X-CrownRank-Client: frontend` and are also stored in `Logs/Frontend/YYYY-MM-DD.txt`. A new file is selected automatically when the local calendar date changes. Request and response bodies, authorization tokens, Stripe signatures, and passwords are not logged. Generated log files are ignored by Git.
