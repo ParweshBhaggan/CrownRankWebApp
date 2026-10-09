@@ -91,6 +91,18 @@ static class ApiChecks
 
         var settings = await client.GetFromJsonAsync<PaymentSettings>("/api/payments/settings");
         Check(settings is { Currency: "usd", MinimumAmount: 10m, MaximumAmount: 10000m }, "API exposes configurable USD limits");
+
+        using var frontendLogRequest = new HttpRequestMessage(HttpMethod.Get, "/api/payments/settings");
+        frontendLogRequest.Headers.Add("X-CrownRank-Client", "frontend");
+        Check((await client.SendAsync(frontendLogRequest)).StatusCode == HttpStatusCode.OK, "Frontend-marked API request succeeds");
+        var logDate = DateTimeOffset.Now.ToString("yyyy-MM-dd");
+        var logRoot = Path.Combine(Directory.GetCurrentDirectory(), "CrownRankApp.API", "Logs");
+        var backendLog = Path.Combine(logRoot, "Backend", $"{logDate}.txt");
+        var frontendLog = Path.Combine(logRoot, "Frontend", $"{logDate}.txt");
+        Check(File.Exists(backendLog) && File.ReadAllText(backendLog).Contains("/api/payments/settings"),
+            "Backend daily endpoint log is written");
+        Check(File.Exists(frontendLog) && File.ReadAllText(frontendLog).Contains("/api/payments/settings"),
+            "Frontend daily endpoint log is written separately");
         var reference = Guid.NewGuid();
         await using var context = new ApplicationDbContext(options);
         var category = await context.Categories.FirstAsync();
