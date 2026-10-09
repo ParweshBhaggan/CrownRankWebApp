@@ -1,6 +1,8 @@
-﻿using CrownRankApp.Application.Dtos.SocialMedia;
+﻿using CrownRankApp.API.Authentication;
+using CrownRankApp.Application.Dtos.SocialMedia;
 using CrownRankApp.Application.Services.SocialMedia;
 using CrownRankApp.Domain.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace CrownRankApp.API.Controllers
@@ -36,9 +38,12 @@ namespace CrownRankApp.API.Controllers
         }
 
         [HttpPost]
+        [Authorize(Roles = AdminRoles.Admin)]
         [EndpointSummary("Add a new social media platform")]
         [EndpointDescription("Adds a new social media platform to the system.")]
         [ProducesResponseType(typeof(SocialMediaPlatform), StatusCodes.Status201Created)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
         public async Task<ActionResult<SocialMediaPlatform>> AddSocialMediaPlatform([FromBody] SocialMediaPlatformDto dto)
         {
             var platform = await service.CreateAsync(dto);
@@ -46,9 +51,12 @@ namespace CrownRankApp.API.Controllers
         }
 
         [HttpDelete("{id:guid}")]
+        [Authorize(Roles = AdminRoles.Admin)]
         [EndpointSummary("Delete a social media platform by ID")]
         [EndpointDescription("Deletes an existing social media platform by its unique identifier.")]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<ActionResult> DeleteSocialMediaPlatform(Guid id)
         {
