@@ -13,9 +13,13 @@ export class ApiError extends Error
 export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T>
 {
   let response: Response
+  const headers = {
+    ...Object.fromEntries(new Headers(init?.headers)),
+    'X-CrownRank-Client': 'frontend',
+  }
 
   try {
-    response = await fetch(`${apiBaseUrl}${path}`, init)
+    response = await fetch(`${apiBaseUrl}${path}`, { ...init, headers })
   } catch {
     throw new Error('The API request was interrupted. Check that the backend is running, then retry.')
   }
