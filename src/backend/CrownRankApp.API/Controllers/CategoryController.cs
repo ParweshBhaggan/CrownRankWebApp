@@ -1,5 +1,7 @@
-﻿using CrownRankApp.Application.Dtos.Category;
+﻿using CrownRankApp.API.Authentication;
+using CrownRankApp.Application.Dtos.Category;
 using CrownRankApp.Application.Services.Category;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace CrownRankApp.API.Controllers
@@ -51,9 +53,12 @@ namespace CrownRankApp.API.Controllers
         }
 
         [HttpPost]
+        [Authorize(Roles = AdminRoles.Admin)]
         [EndpointSummary("Add a new category")]
         [EndpointDescription("Adds a new category to the system.")]
         [ProducesResponseType(typeof(CategoryResponseDto), StatusCodes.Status201Created)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
         public async Task<ActionResult<CategoryResponseDto>> AddCategory([FromBody] CategoryDto dto)
         {
             var category = await service.CreateAsync(dto);
@@ -61,9 +66,12 @@ namespace CrownRankApp.API.Controllers
         }
 
         [HttpPut("{id:guid}")]
+        [Authorize(Roles = AdminRoles.Admin)]
         [EndpointSummary("Update a category by ID")]
         [EndpointDescription("Updates an existing category by its unique identifier.")]
         [ProducesResponseType(typeof(CategoryResponseDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<ActionResult<CategoryResponseDto>> UpdateCategory(Guid id, [FromBody] CategoryDto dto)
         {
@@ -78,9 +86,12 @@ namespace CrownRankApp.API.Controllers
         }
 
         [HttpDelete("{id:guid}")]
+        [Authorize(Roles = AdminRoles.Admin)]
         [EndpointSummary("Delete a category by ID")]
         [EndpointDescription("Deletes an existing category by its unique identifier.")]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<ActionResult> DeleteCategory(Guid id)
         {
