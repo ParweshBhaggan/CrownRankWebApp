@@ -1,4 +1,5 @@
 using CrownRankApp.API.Authentication;
+using CrownRankApp.API.Logging;
 using CrownRankApp.Infrastructure;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.RateLimiting;
@@ -52,6 +53,7 @@ namespace CrownRankApp.API
 
             builder.Services.AddInfrastructure();
             builder.Services.AddPayments(builder.Configuration);
+            builder.Services.AddSingleton<DailyEndpointLogWriter>();
             builder.Services.AddProblemDetails();
             builder.Services.AddRateLimiter(options =>
                 {
@@ -81,6 +83,7 @@ namespace CrownRankApp.API
                 app.MapScalarApiReference();
             }
 
+            app.UseMiddleware<EndpointRequestLoggingMiddleware>();
             app.UseExceptionHandler();
             app.UseHttpsRedirection();
 
