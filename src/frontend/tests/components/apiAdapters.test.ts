@@ -52,7 +52,7 @@ describe('frontend API adapters', () => {
     } satisfies RankingEntryDraft
     await createEntry(draft, 'ui-reference')
     expect(requests.map(request => request.url)).toEqual(['/api/Category', '/api/SocialMediaDefault', '/api/payments/entry-checkout/ui-reference'])
-    expect(requests[2].init?.headers).toEqual({ 'Content-Type': 'application/json' })
+    expect(requests[2].init?.headers).toEqual({ 'content-type': 'application/json', 'X-CrownRank-Client': 'frontend' })
     expect(JSON.parse(String(requests[2].init?.body))).toEqual({ name: 'Ada Lovelace', amount: 12.5 })
     expect(redirectToUrl).toHaveBeenCalledWith('https://checkout.stripe.com/test')
     expect(getPendingEntry('ui-reference')).toEqual({
@@ -131,7 +131,7 @@ describe('frontend API adapters', () => {
     const request = { referenceId: 'ref', creatorId: 'entry', amount: 12.5 } as const
     await expect(new StripeCheckoutGateway().createCheckout(request)).resolves.toEqual({ id: 'ref', url: 'https://checkout.stripe.com/boost', status: 'pending' })
     expect(globalThis.fetch).toHaveBeenCalledWith('/api/payments/entries/entry/boost-checkout/ref', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'CrownRank creator boost', amount: 12.5 }),
+      method: 'POST', headers: { 'content-type': 'application/json', 'X-CrownRank-Client': 'frontend' }, body: JSON.stringify({ name: 'CrownRank creator boost', amount: 12.5 }),
     })
   })
 })
