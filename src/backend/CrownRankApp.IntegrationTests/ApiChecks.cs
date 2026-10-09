@@ -1,3 +1,4 @@
+using CrownRankApp.API.Authentication;
 using CrownRankApp.Application.Dtos.Entry;
 using CrownRankApp.Application.Dtos.Category;
 using CrownRankApp.Application.Dtos.SocialMedia;
@@ -11,12 +12,17 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 
 static class ApiChecks
 {
     public static async Task Run(DbContextOptions<ApplicationDbContext> options)
     {
+        const string adminUsername = "integration-admin";
+        const string adminPassword = "integration-password";
+        const string adminSigningKey = "integration-test-signing-key-32-characters-minimum";
+
         var gateway = new PaymentChecks.FakeGateway();
         using var factory = new WebApplicationFactory<CrownRankApp.API.Program>().WithWebHostBuilder(builder =>
             {
@@ -28,7 +34,13 @@ static class ApiChecks
                             ["Stripe:LiveMode"] = "false",
                             ["Payments:Currency"] = "usd",
                             ["Payments:MinimumAmount"] = "10",
-                            ["Payments:MaximumAmount"] = "10000"
+                            ["Payments:MaximumAmount"] = "10000",
+                            ["AdminAuth:Username"] = adminUsername,
+                            ["AdminAuth:Password"] = adminPassword,
+                            ["AdminAuth:SigningKey"] = adminSigningKey,
+                            ["AdminAuth:Issuer"] = "CrownRankApp.Tests",
+                            ["AdminAuth:Audience"] = "CrownRankAdmin.Tests",
+                            ["AdminAuth:TokenLifetimeMinutes"] = "60"
                         }));
                 builder.ConfigureServices(services =>
                     {
@@ -50,6 +62,33 @@ static class ApiChecks
             }
             Console.WriteLine($"PASS: {message}");
         }
+
+        var unauthorizedCategory = await client.PostAsJsonAsync("/api/Category", new CategoryDto
+            {
+                Name = $"unauthorized_{Guid.NewGuid():N}"
+            });
+        Check(unauthorizedCategory.StatusCode == HttpStatusCode.Unauthorized, "Admin category mutation rejects missing JWT");
+
+        var rejectedLogin = await client.PostAsJsonAsync("/api/admin/auth/login", new AdminLoginRequest(adminUsername, "wrong-password"));
+        Check(rejectedLogin.StatusCode == HttpStatusCode.Unauthorized, "Admin login rejects invalid credentials");
+
+        var loginResponse = await client.PostAsJsonAsync("/api/admin/auth/login", new AdminLoginRequest(adminUsername, adminPassword));
+        var login = await loginResponse.Content.ReadFromJsonAsync<AdminLoginResponse>();
+        Check(loginResponse.StatusCode == HttpStatusCode.OK && !string.IsNullOrWhiteSpace(login?.Token), "Admin login issues JWT for valid credentials");
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", login!.Token);
+
+        var securedCategoryName = $"admin_auth_{Guid.NewGuid():N}";
+        var securedCategoryResponse = await client.PostAsJsonAsync("/api/Category", new CategoryDto
+            {
+                Name = securedCategoryName
+            });
+        var securedCategory = await securedCategoryResponse.Content.ReadFromJsonAsync<CategoryResponseDto>();
+        Check(securedCategoryResponse.StatusCode == HttpStatusCode.Created && securedCategory?.Name == securedCategoryName,
+            "Admin JWT authorizes protected category mutation");
+        var securedCategoryDelete = await client.DeleteAsync($"/api/Category/{securedCategory!.Id}");
+        Check(securedCategoryDelete.StatusCode == HttpStatusCode.NoContent, "Admin JWT authorizes protected category deletion");
+        client.DefaultRequestHeaders.Authorization = null;
+
         var settings = await client.GetFromJsonAsync<PaymentSettings>("/api/payments/settings");
         Check(settings is { Currency: "usd", MinimumAmount: 10m, MaximumAmount: 10000m }, "API exposes configurable USD limits");
         var reference = Guid.NewGuid();
