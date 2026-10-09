@@ -13,7 +13,7 @@ describe('shared API requests', () => {
     const signal = new AbortController().signal
 
     await expect(apiGet('/api/Entry', { signal, credentials: 'include' })).resolves.toEqual([{ id: 'entry' }])
-    expect(fetch).toHaveBeenCalledWith('/api/Entry', { method: 'GET', signal, credentials: 'include' })
+    expect(fetch).toHaveBeenCalledWith('/api/Entry', { method: 'GET', signal, credentials: 'include', headers: { 'X-CrownRank-Client': 'frontend' } })
   })
 
   it.each([['POST', apiPost], ['PUT', apiPut]] as const)('serializes %s and preserves custom headers', async (method, send) => {
@@ -23,7 +23,7 @@ describe('shared API requests', () => {
     await expect(send('/api/Category', { name: 'Science' }, { headers: new Headers({ 'X-Request-Id': 'ref' }) })).resolves.toEqual({ id: 'created' })
     expect(fetch).toHaveBeenCalledWith('/api/Category', {
       method,
-      headers: { 'Content-Type': 'application/json', 'x-request-id': 'ref' },
+      headers: { 'content-type': 'application/json', 'x-request-id': 'ref', 'X-CrownRank-Client': 'frontend' },
       body: JSON.stringify({ name: 'Science' }),
     })
   })
@@ -33,7 +33,7 @@ describe('shared API requests', () => {
     vi.stubGlobal('fetch', fetch)
 
     await expect(apiDelete('/api/Entry/entry')).resolves.toBeUndefined()
-    expect(fetch).toHaveBeenCalledWith('/api/Entry/entry', { method: 'DELETE' })
+    expect(fetch).toHaveBeenCalledWith('/api/Entry/entry', { method: 'DELETE', headers: { 'X-CrownRank-Client': 'frontend' } })
   })
 
   it('propagates API failures through the method helpers', async () => {
