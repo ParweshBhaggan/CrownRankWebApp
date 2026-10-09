@@ -1,5 +1,7 @@
+using CrownRankApp.API.Authentication;
 using CrownRankApp.Application.Dtos.Entry;
 using CrownRankApp.Application.Payments;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.RateLimiting;
 using CrownRankApp.Application.Services.Entry;
 using CrownRankApp.Domain.Models;
@@ -40,7 +42,7 @@ namespace CrownRankApp.API.Controllers
 
         [HttpPost]
         [EndpointSummary("Add a new entry")]
-        [EndpointDescription("Adds a new entry to the system.")]
+        [EndpointDescription("Adds a new entry to the system after verified payment.")]
         [ProducesResponseType(typeof(EntryResponseDto), StatusCodes.Status201Created)]
         [PaymentErrorFilter]
         [EnableRateLimiting("payments")]
@@ -71,7 +73,7 @@ namespace CrownRankApp.API.Controllers
         }
 
         [HttpPost("{id:guid}/boost")]
-        [EndpointSummary("Add a positive amount to an entry score")]
+        [EndpointSummary("Add a paid positive amount to an entry score")]
         [ProducesResponseType(typeof(EntryResponseDto), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -118,9 +120,12 @@ namespace CrownRankApp.API.Controllers
         }
 
         [HttpDelete("{id:guid}")]
+        [Authorize(Roles = AdminRoles.Admin)]
         [EndpointSummary("Delete an entry by ID")]
         [EndpointDescription("Deletes an existing entry by its unique identifier.")]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [PaymentErrorFilter]
         public async Task<ActionResult> DeleteEntry(Guid id)
