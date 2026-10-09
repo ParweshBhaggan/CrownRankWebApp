@@ -15,8 +15,6 @@ namespace CrownRankApp.API
         {
             var builder = WebApplication.CreateBuilder(args);
 
-            // Add services to the container.
-
             builder.Services.AddControllers();
             builder.Services.AddCors(options => options.AddPolicy("Frontend", policy => policy
                         .WithOrigins(builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
@@ -27,7 +25,6 @@ namespace CrownRankApp.API
                 ?? throw new InvalidOperationException("AdminAuth configuration is required.");
             adminAuth.Validate();
             builder.Services.AddSingleton(adminAuth);
-            builder.Services.AddSingleton(TimeProvider.System);
             builder.Services.AddSingleton<AdminTokenService>();
 
             builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -47,7 +44,6 @@ namespace CrownRankApp.API
                     });
             builder.Services.AddAuthorization();
 
-            // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
             builder.Services.AddOpenApi(options =>
                 {
                     options.AddDocumentTransformer<BearerSecuritySchemeTransformer>();
@@ -79,7 +75,6 @@ namespace CrownRankApp.API
 
             var app = builder.Build();
 
-            // Configure the HTTP request pipeline.
             if (app.Environment.IsDevelopment())
             {
                 app.MapOpenApi();
