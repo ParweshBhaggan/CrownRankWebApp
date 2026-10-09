@@ -1,5 +1,7 @@
-﻿using CrownRankApp.Application.Dtos.SocialMedia;
+﻿using CrownRankApp.API.Authentication;
+using CrownRankApp.Application.Dtos.SocialMedia;
 using CrownRankApp.Application.Services.SocialMedia;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace CrownRankApp.API.Controllers
@@ -35,9 +37,12 @@ namespace CrownRankApp.API.Controllers
         }
 
         [HttpPost]
+        [Authorize(Roles = AdminRoles.Admin)]
         [EndpointSummary("Add a new social media default")]
         [EndpointDescription("Adds a new default social media platform to the system.")]
         [ProducesResponseType(typeof(SocialMediaDefaultResponseDto), StatusCodes.Status201Created)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
         public async Task<ActionResult<SocialMediaDefaultResponseDto>> AddSocialMediaDefault([FromBody] SocialMediaDefaultDto dto)
         {
             var platform = await service.CreateAsync(dto);
@@ -45,9 +50,12 @@ namespace CrownRankApp.API.Controllers
         }
 
         [HttpPut("{id:guid}")]
+        [Authorize(Roles = AdminRoles.Admin)]
         [EndpointSummary("Update a social media default by ID")]
         [EndpointDescription("Updates an existing default social media platform by its unique identifier.")]
         [ProducesResponseType(typeof(SocialMediaDefaultResponseDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<ActionResult<SocialMediaDefaultResponseDto>> UpdateSocialMediaDefault(Guid id, [FromBody] SocialMediaDefaultDto dto)
         {
@@ -62,9 +70,12 @@ namespace CrownRankApp.API.Controllers
         }
 
         [HttpDelete("{id:guid}")]
+        [Authorize(Roles = AdminRoles.Admin)]
         [EndpointSummary("Delete a social media default by ID")]
         [EndpointDescription("Deletes an existing default social media platform by its unique identifier.")]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<ActionResult> DeleteSocialMediaDefault(Guid id)
         {
