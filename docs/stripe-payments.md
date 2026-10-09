@@ -1,6 +1,6 @@
 # Stripe payments from the working recovery branch
 
-This integration starts at `recovery_point/working_application`. The existing browser `profileImageDataUrl` helper is unchanged: it resizes to 300 × 250 and produces the same WebP data URL. The existing `EntryResponseDto`, `CreateAsync`, image field, category mapping, and social profile mapping remain in use. There is no new image upload endpoint, asset folder, image decoding dependency, or entry-submission endpoint.
+The browser still uses the existing `profileImageDataUrl` data-URL flow, but retains up to 1200 × 1000 pixels and encodes WebP at higher quality so profile images are not visibly upscaled from a tiny source. The existing `EntryResponseDto`, `CreateAsync`, image field, category mapping, and social profile mapping remain in use. There is no new image upload endpoint, asset folder, image decoding dependency, or entry-submission endpoint.
 
 ## Flow
 
