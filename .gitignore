@@ -21,9 +21,10 @@ vite.config.d.ts
 .vscode/
 .DS_Store
 
-# Uploads and local data
+# Uploads, logs and local data
 uploads/
 **/wwwroot/uploads/
+**/Logs/
 *.db
 /.vs/CrownRank.slnx/FileContentIndex
 /.vs/CrownRank.slnx/v18
