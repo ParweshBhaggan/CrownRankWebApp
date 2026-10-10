@@ -61,7 +61,8 @@ internal static class EndpointAuditDescription
             return "System";
         }
 
-        if (action?.ControllerName == "AdminAuth" || context.User.IsInRole(CrownRankApp.API.Authentication.AdminRoles.Admin))
+        if (action?.ControllerName == "AdminAuth"
+            || context.User.IsInRole(CrownRankApp.API.Authentication.AdminRoles.Admin))
         {
             return "Admin";
         }
@@ -69,9 +70,9 @@ internal static class EndpointAuditDescription
         return "User";
     }
 
-    public static string GetEndpoint(HttpContext context, ControllerActionDescriptor? action)
+    public static string GetEndpoint(HttpContext context)
     {
-        var template = action?.AttributeRouteInfo?.Template;
+        var template = (context.GetEndpoint() as RouteEndpoint)?.RoutePattern.RawText;
         return string.IsNullOrWhiteSpace(template)
             ? $"{context.Request.Method} {context.Request.Path}"
             : $"{context.Request.Method} /{template.TrimStart('/')}";
