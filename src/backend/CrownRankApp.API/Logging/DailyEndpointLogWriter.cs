@@ -1,11 +1,8 @@
-using System.Text.Json;
-
 namespace CrownRankApp.API.Logging;
 
 public sealed class DailyEndpointLogWriter(IWebHostEnvironment environment, TimeProvider clock)
 {
     private readonly SemaphoreSlim writeLock = new(1, 1);
-    private readonly JsonSerializerOptions jsonOptions = new(JsonSerializerDefaults.Web);
 
     public async Task WriteAsync(string area, EndpointLogEntry entry, CancellationToken ct = default)
     {
@@ -13,14 +10,21 @@ public sealed class DailyEndpointLogWriter(IWebHostEnvironment environment, Time
         {
             var localDate = DateOnly.FromDateTime(clock.GetLocalNow().DateTime);
             var directory = Path.Combine(environment.ContentRootPath, "Logs", area);
-            var path = Path.Combine(directory, $"{localDate:yyyy-MM-dd}.txt");
-            var line = JsonSerializer.Serialize(entry, jsonOptions) + Environment.NewLine;
+            var path = Path.Combine(directory, $"{localDate:dd-MM-yyyy}.txt");
+            var block =
+                $"Log {entry.Timestamp:dd-MM-yyyy HH:mm:ss}{Environment.NewLine}" +
+                $"Text: {entry.Text}{Environment.NewLine}" +
+                $"Who: {entry.Who}{Environment.NewLine}" +
+                $"Endpoint: {entry.Endpoint}{Environment.NewLine}" +
+                $"Response: {entry.Response}{Environment.NewLine}" +
+                $"Request: {entry.Request}{Environment.NewLine}" +
+                $"{new string('-', 60)}{Environment.NewLine}";
 
             await writeLock.WaitAsync(ct);
             try
             {
                 Directory.CreateDirectory(directory);
-                await File.AppendAllTextAsync(path, line, ct);
+                await File.AppendAllTextAsync(path, block, ct);
             }
             finally
             {
@@ -36,10 +40,8 @@ public sealed class DailyEndpointLogWriter(IWebHostEnvironment environment, Time
 
 public sealed record EndpointLogEntry(
     DateTimeOffset Timestamp,
-    string Method,
-    string Path,
-    int StatusCode,
-    long DurationMs,
-    string TraceId,
-    string Source,
-    string? Endpoint);
+    string Text,
+    string Who,
+    string Endpoint,
+    string Response,
+    string Request);
