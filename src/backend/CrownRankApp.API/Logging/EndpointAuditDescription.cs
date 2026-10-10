@@ -61,7 +61,7 @@ internal static class EndpointAuditDescription
             return "System";
         }
 
-        if (action?.ControllerName == "AdminAuth" || context.User.IsInRole(Authentication.AdminRoles.Admin))
+        if (action?.ControllerName == "AdminAuth" || context.User.IsInRole(CrownRankApp.API.Authentication.AdminRoles.Admin))
         {
             return "Admin";
         }
