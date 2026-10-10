@@ -21,7 +21,7 @@ public sealed class EndpointRequestLoggingMiddleware(RequestDelegate next, TimeP
                 clock.GetLocalNow(),
                 EndpointAuditDescription.GetText(action, context.Response.StatusCode),
                 EndpointAuditDescription.GetWho(context, action),
-                EndpointAuditDescription.GetEndpoint(context, action),
+                EndpointAuditDescription.GetEndpoint(context),
                 context.Response.StatusCode < 400 ? "Success" : "Fail",
                 EndpointAuditDescription.GetIds(context));
 
