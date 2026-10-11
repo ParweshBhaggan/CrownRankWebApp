@@ -27,6 +27,6 @@ export async function createEntry(draft: RankingEntryDraft, entryReference: stri
   }
 
   savePendingEntry(entryReference, entry)
-  const checkout = await startEntryCheckout(entryReference, { name: entry.name, amount: entry.score })
+  const checkout = await startEntryCheckout(entryReference, { name: entry.name, amount: entry.score, entry })
   continueToCheckout(checkout)
 }
