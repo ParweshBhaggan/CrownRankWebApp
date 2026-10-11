@@ -33,7 +33,13 @@ test('entry and boost checkout update rankings only after confirmed payment', as
     if (path === '/api/Entry' && request.method() === 'GET') return route.fulfill({ json: [...entries].sort((a,b) => b.score - a.score) })
     if (path.startsWith('/api/payments/entry-checkout/')) {
       paymentId = path.split('/').at(-1)!
-      expect(request.postDataJSON()).toEqual({ name: 'Grace Hopper', amount: 12.5 })
+      expect(request.postDataJSON()).toMatchObject({
+        name: 'Grace Hopper', amount: 12.5,
+        entry: { name: 'Grace Hopper', username: 'grace', score: 12.5,
+          categories: [{ name: 'Science' }],
+          socialMediaPlatforms: [{ platformName: 'Facebook', url: 'https://facebook.com/grace' }] },
+      })
+      expect(request.postDataJSON().entry.imgUrl).toMatch(/^data:image\\/webp;base64,/)
       return route.fulfill({ json: { id: paymentId, url: 'https://checkout.stripe.com/entry', status: 'pending' } })
     }
     if (path === '/api/Entry' && request.method() === 'POST') {
