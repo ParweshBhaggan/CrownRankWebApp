@@ -35,7 +35,7 @@ export async function completePaidEntry(payment: PaymentResponse): Promise<Payme
   }
   if (payment.status !== 'paid' || payment.purpose !== 'entry') return payment
   const entry = getPendingEntry(payment.id)
-  if (!entry) throw new Error('Payment received. Open this return link in the browser you used for checkout to finish registering your entry.')
+  if (!entry) throw new Error('Payment received and saved on the server. Registration still needs attention. Retry confirmation or contact support with your payment reference.')
   const result = await postEntry(entry, payment.id)
   discardPendingEntry(payment.id)
   return { ...payment, fulfilled: true, entryId: result.id }
