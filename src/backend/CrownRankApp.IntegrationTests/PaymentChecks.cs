@@ -204,6 +204,18 @@ static class PaymentChecks
         Check(recovered.Status == "paid" && recovered.Fulfilled && recovered.EntryId == durableSaved.Id,
             "Later browser confirmation recovers webhook-fulfilled entry");
 
+        // A live checkout must not be able to accept money without the server
+        // holding the form required to fulfill the purchase.
+        await using (var liveContext = new ApplicationDbContext(options))
+        {
+            var liveSettings = new StripeSettings { LiveMode = true };
+            var liveService = new PaymentService(liveContext,
+                new EntryServices(liveContext, TimeProvider.System, settings),
+                gateway, settings, liveSettings, TimeProvider.System);
+            await Reject<ArgumentException>(() => liveService.StartAsync(Guid.NewGuid(), checkout, null, default),
+                "Live creator checkout rejects a missing server-side entry snapshot");
+        }
+
         await ApiChecks.Run(options);
     }
 
