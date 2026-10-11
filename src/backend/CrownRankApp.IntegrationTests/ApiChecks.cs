@@ -228,5 +228,41 @@ static class ApiChecks
         var boosted = await boostResult.Content.ReadFromJsonAsync<EntryResponseDto>();
         Check(boostResult.StatusCode == HttpStatusCode.OK && boosted!.Score == 20.50m && boosted.ImgUrl == image,
             "Original boost endpoint ignores forged amounts and returns the unchanged creator image");
+
+        // Simulate payment while the original browser never sends POST /api/Entry.
+        var webhookOnlyReference = Guid.NewGuid();
+        var webhookForm = new EntryResponseDto
+        {
+            Name = "Webhook-only creator",
+            Username = $"webhook_{webhookOnlyReference:N}",
+            ImgUrl = image,
+            Score = 17.25m,
+            Categories = [new CategoryDto { Name = category.Name }],
+            SocialMediaPlatforms = [new SocialMediaPlatformDto
+            {
+                PlatformName = platform.Name,
+                Url = "https://example.com/webhook-only"
+            }]
+        };
+        var webhookCheckout = await client.PostAsJsonAsync($"/api/payments/entry-checkout/{webhookOnlyReference}",
+            new { name = webhookForm.Name, amount = webhookForm.Score, entry = webhookForm });
+        Check(webhookCheckout.StatusCode == HttpStatusCode.OK, "HTTP checkout saves complete entry before Stripe payment");
+        gateway.Pay(webhookOnlyReference);
+        using var entryWebhook = new HttpRequestMessage(HttpMethod.Post, "/api/payments/stripe-webhook")
+        {
+            Content = new StringContent(webhookOnlyReference.ToString())
+        };
+        entryWebhook.Headers.Add("Stripe-Signature", "signed");
+        Check((await client.SendAsync(entryWebhook)).StatusCode == HttpStatusCode.OK,
+            "Verified Stripe webhook registers a paid entry without a browser return");
+        var completed = await (await client.PostAsJsonAsync($"/api/payments/{webhookOnlyReference}/confirm", new { }))
+            .Content.ReadFromJsonAsync<PaymentResponse>();
+        var restoredEntry = await context.Entries.AsNoTracking().SingleAsync(value => value.Id == completed!.EntryId);
+        Check(completed is { Status: "paid", Fulfilled: true }
+            && restoredEntry.Username == webhookForm.Username
+            && restoredEntry.Score == 17.25m
+            && restoredEntry.ImgUrl == image
+            && await context.ScoreAdditions.CountAsync(value => value.EntryId == restoredEntry.Id) == 1,
+            "Webhook-only HTTP entry keeps the source image and adds the paid score once");
     }
 }
