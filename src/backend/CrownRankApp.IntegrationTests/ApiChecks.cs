@@ -74,6 +74,11 @@ static class ApiChecks
 
         var loginResponse = await client.PostAsJsonAsync("/api/admin/auth/login", new AdminLoginRequest(adminUsername, adminPassword));
         var login = await loginResponse.Content.ReadFromJsonAsync<AdminLoginResponse>();
+        if (loginResponse.StatusCode != HttpStatusCode.OK || string.IsNullOrWhiteSpace(login?.Token))
+        {
+            var actualAuth = factory.Services.GetRequiredService<AdminAuthSettings>();
+            Console.WriteLine($"Login diagnostic: status={(int)loginResponse.StatusCode}; tokenPresent={!string.IsNullOrEmpty(login?.Token)}; usernameMatches={actualAuth.Username == adminUsername}; passwordMatches={actualAuth.Password == adminPassword}; issuerMatches={actualAuth.Issuer == "CrownRankApp.Tests"}.");
+        }
         Check(loginResponse.StatusCode == HttpStatusCode.OK && !string.IsNullOrWhiteSpace(login?.Token), "Admin login issues JWT for valid credentials");
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", login!.Token);
 
