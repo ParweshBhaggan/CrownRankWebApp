@@ -171,7 +171,9 @@ static class PaymentChecks
         var durableCheckout = new CheckoutRequest(durableEntry.Name, durableEntry.Score, durableEntry);
         await With(service => service.StartAsync(durableReference, durableCheckout, null, default));
         var persistedDraft = await lookup.CheckoutPayments.AsNoTracking().SingleAsync(value => value.Id == durableReference);
-        Check(persistedDraft.PendingEntryJson is not null && persistedDraft.PendingEntryJson.Contains(image)
+        var storedDraft = persistedDraft.PendingEntryJson is null ? null :
+            System.Text.Json.JsonSerializer.Deserialize<EntryResponseDto>(persistedDraft.PendingEntryJson);
+        Check(storedDraft?.ImgUrl == image && storedDraft.Username == durableEntry.Username
             && !await lookup.Entries.AnyAsync(value => value.Username == durableEntry.Username),
             "Complete entry and image are saved before payment, not published before payment");
 
