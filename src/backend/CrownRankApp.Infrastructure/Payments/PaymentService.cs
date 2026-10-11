@@ -35,6 +35,10 @@ public sealed class PaymentService(ApplicationDbContext context, IEntryServices 
         }
         if (payment is null)
         {
+            if (request.Entry is not null)
+            {
+                await ValidatePendingEntryAsync(request.Entry, ct);
+            }
             if (boostEntryId.HasValue && !await context.Entries.AnyAsync(entry => entry.Id == boostEntryId, ct))
             {
                 throw new KeyNotFoundException("The creator is unavailable.");
@@ -154,6 +158,38 @@ public sealed class PaymentService(ApplicationDbContext context, IEntryServices 
                 throw new InvalidOperationException("An entry with this username already exists. Your payment is saved; choose another username and retry.");
             }
             throw;
+        }
+    }
+
+    private async Task ValidatePendingEntryAsync(EntryResponseDto entry, CancellationToken ct)
+    {
+        // Check the currently available lookup data before a user can pay.
+        // Creation still revalidates in case anything changes after checkout.
+        if (await context.Entries.AsNoTracking().AnyAsync(value => value.Username == entry.Username.Trim(), ct))
+        {
+            throw new InvalidOperationException("An entry with this username already exists.");
+        }
+
+        var categories = entry.Categories.Select(value => value.Name.Trim()).Distinct().ToArray();
+        if (categories.Length == 0
+            || await context.Categories.CountAsync(value => categories.Contains(value.Name), ct) != categories.Length)
+        {
+            throw new ArgumentException("One or more selected categories are unavailable.");
+        }
+
+        var platformNames = entry.SocialMediaPlatforms.Select(value => value.PlatformName.Trim()).ToArray();
+        if (platformNames.Distinct().Count() != platformNames.Length
+            || await context.SocialMediaDefaults.CountAsync(value => platformNames.Contains(value.Name), ct) != platformNames.Length)
+        {
+            throw new ArgumentException("One or more social media platforms are unavailable or duplicated.");
+        }
+        foreach (var link in entry.SocialMediaPlatforms)
+        {
+            if (!Uri.TryCreate(link.Url, UriKind.Absolute, out var url) || url.Scheme != Uri.UriSchemeHttps
+                || !string.IsNullOrEmpty(url.UserInfo))
+            {
+                throw new ArgumentException("Social media links must be valid HTTPS URLs.");
+            }
         }
     }
 
