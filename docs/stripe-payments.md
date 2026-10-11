@@ -4,16 +4,16 @@ The browser still uses the existing `profileImageDataUrl` data-URL flow, but ret
 
 ## Flow
 
-1. Continue to payment saves the original form, including its existing image data URL, in localStorage under a random checkout reference. Storage failure stops checkout before a charge can start.
-2. The frontend posts only `{ "name": "Creator name", "amount": 12.50 }` to `POST /api/payments/entry-checkout/{referenceId}`. Boost checkout uses the same body and `POST /api/payments/entries/{entryId}/boost-checkout/{referenceId}`.
+1. Continue to payment sends the complete original entry form (including its WebP data URL) and the name/amount to the backend under a random checkout reference. The backend persists the draft in `CheckoutPayments.PendingEntryJson` before creating any Stripe session. Browser localStorage is only an optional recovery/editor cache.
+2. Entry checkout posts `{ "name": "Creator name", "amount": 12.50, "entry": { ...complete entry form... } }` to `POST /api/payments/entry-checkout/{referenceId}`. Only name and amount are passed onward to Stripe. Boost checkout still sends only name and amount to `POST /api/payments/entries/{entryId}/boost-checkout/{referenceId}`. Live entry checkout rejects requests with no saved form.
 3. The API saves a small payment record and creates a single Stripe line item with a stable idempotency key. The browser opens the returned Stripe URL.
 4. `/payment/success?payment_id=...` verifies the saved Stripe session through the backend. A return URL alone never proves payment.
-5. Once paid, the original `postEntry` sends its unchanged form to `POST /api/Entry?paymentId=...`. The server uses the verified payment amount as the score and calls the existing entry service. The entry, score history, and payment fulfillment marker commit in one transaction. Retrying returns the existing entry.
+5. Once paid, the verified Stripe webhook or return-page confirmation creates the saved entry without requiring a browser return. The server uses the verified payment amount as the score and calls the existing entry service. The entry, score history, and fulfillment marker commit in one transaction, and the temporary draft is cleared after publication. Retrying returns the existing entry. The original `POST /api/Entry?paymentId=...` path remains a correction/recovery fallback.
 6. Boosts use the existing `BoostScoreAsync` service and payment ID as its unique score-addition reference. Both verified webhooks and return-page confirmation can fulfill a boost; retries cannot award it twice.
 
 Cancel returns to `/payment/cancel?payment_id=...`. An unpaid cancel return publishes nothing and offers Resume checkout for the same Stripe session. A completed payment is still recognized on either return page. Expired checkout cannot publish; the visitor can start a new form explicitly. Failed cards stay in Stripe's checkout for correction. Network failures retain the original form and reference; validation failures after payment allow correction without charging again. Paid receipt is saved independently before registration, so failure to register does not lose payment evidence.
 
-Entry registration requires returning in the same browser and frontend origin, where the original form is retained. If the browser never returns, the webhook still records the payment, but cannot reconstruct a form that was not sent to the server. Boosts can fulfill from the webhook alone. Do not clear browser storage while completing an entry; keep payment links private because their random UUID acts as a capability.
+New entry submissions can complete without a browser return: the webhook already has the persisted form. Existing checkouts created before this schema and API change may still require their original browser data. Invalid/deleted categories, taken usernames, or temporary database failures can leave a paid entry awaiting correction or operator attention; payment is retained for recovery, and webhook delivery should be monitored. Keep payment links private because their random UUID acts as a capability.
 
 ## Setup
 
@@ -50,7 +50,7 @@ stripe listen --forward-to https://localhost:7076/api/payments/stripe-webhook --
 
 Set `Stripe:WebhookSecret` to the listener's current `whsec_...`, then restart the API. In Stripe test mode use `4242 4242 4242 4242`, a future expiry and any CVC. For a deployed webhook subscribe to checkout.session.completed, checkout.session.async_payment_succeeded, checkout.session.async_payment_failed, and checkout.session.expired. The handler verifies the raw signature and test/live environment and retrieves current session state before applying it. Unrelated events are acknowledged without changing scores.
 
-The migration only adds `CheckoutPayments`; it does not change the existing image or entry tables. If you previously applied migrations from the abandoned Stripe integration branch, create a backup and use the database schema associated with the recovery branch before applying this new branch's migration. Do not copy that abandoned branch's migrations into this integration.
+Apply the new `StorePendingCheckoutEntry` migration, adding nullable `CheckoutPayments.PendingEntryJson` for recovery; it does not modify the existing image or entry tables. If you previously applied migrations from the abandoned Stripe integration branch, create a backup and use the database schema associated with the recovery branch before applying this new branch's migration. Do not copy that abandoned branch's migrations into this integration.
 
 ## Checks and scope
 
