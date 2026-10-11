@@ -39,7 +39,7 @@ test('entry and boost checkout update rankings only after confirmed payment', as
           categories: [{ name: 'Science' }],
           socialMediaPlatforms: [{ platformName: 'Facebook', url: 'https://facebook.com/grace' }] },
       })
-      expect(request.postDataJSON().entry.imgUrl).toMatch(/^data:image\\/webp;base64,/)
+      expect(request.postDataJSON().entry.imgUrl).toMatch(/^data:image\/webp;base64,/)
       return route.fulfill({ json: { id: paymentId, url: 'https://checkout.stripe.com/entry', status: 'pending' } })
     }
     if (path === '/api/Entry' && request.method() === 'POST') {
