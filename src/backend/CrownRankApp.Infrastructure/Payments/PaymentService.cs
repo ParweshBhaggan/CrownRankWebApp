@@ -303,9 +303,10 @@ public sealed class PaymentService(ApplicationDbContext context, IEntryServices 
                 logger?.LogWarning("Paid entry {PaymentId} needs form correction before fulfillment.", payment.Id);
                 context.ChangeTracker.Clear();
             }
-            catch (InvalidOperationException)
+            catch (InvalidOperationException exception) when (
+                exception.Message.Contains("username", StringComparison.OrdinalIgnoreCase))
             {
-                logger?.LogWarning("Paid entry {PaymentId} needs form correction before fulfillment.", payment.Id);
+                logger?.LogWarning("Paid entry {PaymentId} has a username conflict; form correction is needed.", payment.Id);
                 context.ChangeTracker.Clear();
             }
         }
