@@ -1,4 +1,7 @@
 using CrownRankApp.API.Authentication;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 using CrownRankApp.Application.Dtos.Entry;
 using CrownRankApp.Application.Dtos.Category;
 using CrownRankApp.Application.Dtos.SocialMedia;
@@ -44,6 +47,33 @@ static class ApiChecks
                         }));
                 builder.ConfigureServices(services =>
                     {
+                        // WebApplicationFactory applies ConfigureAppConfiguration after the minimal
+                        // host binds AdminAuth. Replace the singleton and JWT validation
+                        // together so login and authorization use the same test secrets.
+                        services.RemoveAll<AdminAuthSettings>();
+                        services.AddSingleton(new AdminAuthSettings
+                        {
+                            Username = adminUsername,
+                            Password = adminPassword,
+                            SigningKey = adminSigningKey,
+                            Issuer = "CrownRankApp.Tests",
+                            Audience = "CrownRankAdmin.Tests",
+                            TokenLifetimeMinutes = 60
+                        });
+                        services.PostConfigure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme, options =>
+                        {
+                            options.TokenValidationParameters = new TokenValidationParameters
+                            {
+                                ValidateIssuer = true,
+                                ValidIssuer = "CrownRankApp.Tests",
+                                ValidateAudience = true,
+                                ValidAudience = "CrownRankAdmin.Tests",
+                                ValidateIssuerSigningKey = true,
+                                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(adminSigningKey)),
+                                ValidateLifetime = true,
+                                ClockSkew = TimeSpan.FromSeconds(30)
+                            };
+                        });
                         services.RemoveAll<IPaymentGateway>();
                         services.AddSingleton<IPaymentGateway>(gateway);
                         services.RemoveAll<DbContextOptions<ApplicationDbContext>>();
@@ -74,11 +104,6 @@ static class ApiChecks
 
         var loginResponse = await client.PostAsJsonAsync("/api/admin/auth/login", new AdminLoginRequest(adminUsername, adminPassword));
         var login = await loginResponse.Content.ReadFromJsonAsync<AdminLoginResponse>();
-        if (loginResponse.StatusCode != HttpStatusCode.OK || string.IsNullOrWhiteSpace(login?.Token))
-        {
-            var actualAuth = factory.Services.GetRequiredService<AdminAuthSettings>();
-            Console.WriteLine($"Login diagnostic: status={(int)loginResponse.StatusCode}; tokenPresent={!string.IsNullOrEmpty(login?.Token)}; usernameMatches={actualAuth.Username == adminUsername}; passwordMatches={actualAuth.Password == adminPassword}; issuerMatches={actualAuth.Issuer == "CrownRankApp.Tests"}.");
-        }
         Check(loginResponse.StatusCode == HttpStatusCode.OK && !string.IsNullOrWhiteSpace(login?.Token), "Admin login issues JWT for valid credentials");
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", login!.Token);
 
