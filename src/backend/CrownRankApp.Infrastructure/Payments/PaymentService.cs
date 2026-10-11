@@ -4,10 +4,12 @@ using CrownRankApp.Application.Services.Entry;
 using CrownRankApp.Domain.Models;
 using CrownRankApp.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using System.Text.Json;
 
 namespace CrownRankApp.Infrastructure.Payments;
 
-public sealed class PaymentService(ApplicationDbContext context, IEntryServices entries, IPaymentGateway gateway, PaymentSettings settings, StripeSettings stripe, TimeProvider clock) : IPaymentService
+public sealed class PaymentService(ApplicationDbContext context, IEntryServices entries, IPaymentGateway gateway, PaymentSettings settings, StripeSettings stripe, TimeProvider clock, ILogger<PaymentService>? logger = null) : IPaymentService
 {
     public async Task<CheckoutResponse> StartAsync(Guid referenceId, CheckoutRequest request, Guid? boostEntryId, CancellationToken ct)
     {
@@ -19,7 +21,18 @@ public sealed class PaymentService(ApplicationDbContext context, IEntryServices 
         {
             throw new ArgumentException($"Choose {settings.Currency.ToUpperInvariant()} {settings.MinimumAmount:0.00}–{settings.MaximumAmount:0.00} with at most two decimal places.");
         }
+        // Store the complete form before a user can be charged. Stripe only receives name and amount.
+        var pendingJson = request.Entry is null ? null : SerializeEntrySnapshot(request.Entry, request.Name, request.Amount);
+        if (boostEntryId.HasValue && pendingJson is not null)
+        {
+            throw new ArgumentException("Boost checkout cannot contain a creator registration form.");
+        }
+
         var payment = await context.CheckoutPayments.AsNoTracking().SingleOrDefaultAsync(value => value.Id == referenceId, ct);
+        if (payment is null && !boostEntryId.HasValue && stripe.LiveMode && pendingJson is null)
+        {
+            throw new ArgumentException("Live entry checkout requires a complete form saved before payment.");
+        }
         if (payment is null)
         {
             if (boostEntryId.HasValue && !await context.Entries.AnyAsync(entry => entry.Id == boostEntryId, ct))
@@ -38,7 +51,8 @@ public sealed class PaymentService(ApplicationDbContext context, IEntryServices 
                 CreatedAt = now,
                 ExpiresAt = now.AddHours(24),
                 FrontendUrl = stripe.FrontendUrl.TrimEnd('/'),
-                LiveMode = stripe.LiveMode
+                LiveMode = stripe.LiveMode,
+                PendingEntryJson = pendingJson
             };
             context.CheckoutPayments.Add(payment);
             try
@@ -56,7 +70,8 @@ public sealed class PaymentService(ApplicationDbContext context, IEntryServices 
             }
             context.ChangeTracker.Clear();
         }
-        if (payment.Name != request.Name.Trim() || payment.Amount != request.Amount || payment.BoostEntryId != boostEntryId)
+        if (payment.Name != request.Name.Trim() || payment.Amount != request.Amount || payment.BoostEntryId != boostEntryId
+            || (pendingJson is not null && payment.PendingEntryJson != pendingJson))
         {
             throw new InvalidOperationException("This checkout reference already has different details. Resume the existing checkout.");
         }
@@ -97,8 +112,13 @@ public sealed class PaymentService(ApplicationDbContext context, IEntryServices 
         {
             throw new InvalidOperationException("A successful entry payment is required before registration.");
         }
-        // Lock this payment while the original service creates the entry. The entry and
-        // consumed payment commit together, so concurrent return-page retries publish once.
+        return await PublishEntryAsync(referenceId, entry, ct);
+    }
+
+    // Used by the Stripe webhook and the browser return route. The payment row is
+    // locked until the entry and fulfillment marker commit in the same transaction.
+    private async Task<EntryResponseDto> PublishEntryAsync(Guid referenceId, EntryResponseDto entry, CancellationToken ct)
+    {
         await using var transaction = await context.Database.BeginTransactionAsync(ct);
         await context.CheckoutPayments.Where(value => value.Id == referenceId)
             .ExecuteUpdateAsync(setters => setters.SetProperty(value => value.Amount, value => value.Amount), ct);
@@ -108,12 +128,14 @@ public sealed class PaymentService(ApplicationDbContext context, IEntryServices 
             await transaction.CommitAsync(ct);
             return await GetEntryAsync(payment.FulfilledEntryId.Value);
         }
+        if (!payment.PaidAt.HasValue || payment.Purpose != "entry")
+        {
+            throw new InvalidOperationException("A verified paid entry checkout is required.");
+        }
         if (entry.Name.Trim() != payment.Name)
         {
             throw new ArgumentException("The entry name must match the paid checkout.");
         }
-        // Preserve the existing DTO, image and CreateAsync implementation; only the
-        // opening score comes from Stripe's verified amount instead of the browser.
         entry.Score = payment.Amount;
         try
         {
@@ -133,6 +155,26 @@ public sealed class PaymentService(ApplicationDbContext context, IEntryServices 
             }
             throw;
         }
+    }
+
+    private static string SerializeEntrySnapshot(EntryResponseDto entry, string name, decimal amount)
+    {
+        if (entry.Name?.Trim() != name.Trim() || string.IsNullOrWhiteSpace(entry.Username)
+            || string.IsNullOrWhiteSpace(entry.ImgUrl) || entry.Categories is not { Count: > 0 }
+            || entry.SocialMediaPlatforms is not { Count: >= 1 and <= 5 })
+        {
+            throw new ArgumentException("A complete entry form with matching name, image, category and social links is required.");
+        }
+        if (entry.Score != amount)
+        {
+            throw new ArgumentException("Entry contribution must match the requested checkout amount.");
+        }
+        var json = JsonSerializer.Serialize(entry);
+        if (json.Length > 8_000_000)
+        {
+            throw new ArgumentException("The image or entry form is too large.");
+        }
+        return json;
     }
 
     public async Task<EntryResponseDto> RegisterBoostAsync(Guid referenceId, Guid entryId, CancellationToken ct)
@@ -204,6 +246,29 @@ public sealed class PaymentService(ApplicationDbContext context, IEntryServices 
             await context.CheckoutPayments.Where(value => value.Id == payment.Id && value.PaidAt == null)
                 .ExecuteUpdateAsync(setters => setters.SetProperty(value => value.PaidAt, paidAt), ct);
             payment.PaidAt ??= paidAt;
+        }
+        if (payment.PaidAt.HasValue && payment.Purpose == "entry"
+            && !payment.FulfilledEntryId.HasValue && payment.PendingEntryJson is not null)
+        {
+            try
+            {
+                var draft = JsonSerializer.Deserialize<EntryResponseDto>(payment.PendingEntryJson)
+                    ?? throw new ArgumentException("The pending entry is unavailable.");
+                var created = await PublishEntryAsync(payment.Id, draft, ct);
+                payment.FulfilledEntryId = created.Id;
+            }
+            catch (ArgumentException)
+            {
+                // A category/profile may have become invalid since checkout. Payment stays
+                // recorded and the customer can correct the form without paying again.
+                logger?.LogWarning("Paid entry {PaymentId} needs form correction before fulfillment.", payment.Id);
+                context.ChangeTracker.Clear();
+            }
+            catch (InvalidOperationException)
+            {
+                logger?.LogWarning("Paid entry {PaymentId} needs form correction before fulfillment.", payment.Id);
+                context.ChangeTracker.Clear();
+            }
         }
         if (payment.PaidAt.HasValue && payment.Purpose == "boost" && !payment.FulfilledEntryId.HasValue)
         {
