@@ -90,3 +90,9 @@ Browser tests intercept API responses and verify registration, direct boost subm
 ## Endpoint logs
 
 The API writes human-readable audit blocks into date-based text files under `src/backend/CrownRankApp.API/Logs`. Backend activity is stored in `Logs/Backend/DD-MM-YYYY.txt`. Requests made through the React API client are marked with `X-CrownRank-Client: frontend` and are also stored in `Logs/Frontend/DD-MM-YYYY.txt`. Each block contains the timestamp, a plain-English description of the action, whether it was a User/Admin/System action, the endpoint route template, Success/Fail, and only relevant ID values. Request/response bodies, names, amounts, authorization tokens, Stripe signatures, passwords, and other sensitive values are not logged. Generated log files are ignored by Git.
+
+## Paid entry recovery
+
+Before Stripe Checkout, the React client sends the complete entry draft along with the checkout name/amount. The API stores a temporary copy in `CheckoutPayments.PendingEntryJson`. Verified Stripe webhooks can register the entry even if the customer does not return to the site; the saved draft is cleared once the entry is published. The original browser-based post-entry route remains available for form correction and older checkouts. Apply the `StorePendingCheckoutEntry` migration before accepting real payments. In live mode, creating a new entry checkout without a persisted form is rejected.
+
+A paid entry can still need manual attention if validation conditions change between checkout and fulfillment (for example, a duplicate username). Monitor unpaid/unfulfilled checkouts and failed webhook processing during deployment.

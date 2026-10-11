@@ -23,7 +23,7 @@ public sealed class PaymentSettings
     } = 10000m;
 }
 
-public sealed record CheckoutRequest(string Name, decimal Amount);
+public sealed record CheckoutRequest(string Name, decimal Amount, EntryResponseDto? Entry = null);
 public sealed record CheckoutResponse(Guid Id, string? Url, string Status);
 public sealed record PaymentResponse(Guid Id, string Status, bool Fulfilled, Guid? EntryId, decimal Amount, string Currency, string Purpose);
 public sealed record CheckoutContext(Guid ReferenceId, string Currency, DateTime CreatedAt, DateTime ExpiresAt, string FrontendUrl);
