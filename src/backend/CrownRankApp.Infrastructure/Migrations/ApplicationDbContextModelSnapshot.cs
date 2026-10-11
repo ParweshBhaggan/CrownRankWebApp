@@ -55,6 +55,8 @@ namespace CrownRankApp.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
                     b.Property<Guid?>("FulfilledEntryId")
                         .HasColumnType("uuid");
+                    b.Property<string>("PendingEntryJson")
+                        .HasColumnType("text");
                     b.HasKey("Id");
                     b.HasIndex("SessionId").IsUnique();
                     b.ToTable("CheckoutPayments");
