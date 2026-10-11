@@ -26,7 +26,9 @@ export async function createEntry(draft: RankingEntryDraft, entryReference: stri
     socialMediaPlatforms: draft.socialLinks.map((link) => ({ platformName: link.platform, url: link.url.trim() })),
   }
 
-  savePendingEntry(entryReference, entry)
+  // Browser storage is now only a convenience for corrections. The server keeps
+  // the authoritative snapshot before Stripe Checkout can begin.
+  try { savePendingEntry(entryReference, entry) } catch { /* Server checkout persists the form. */ }
   const checkout = await startEntryCheckout(entryReference, { name: entry.name, amount: entry.score, entry })
   continueToCheckout(checkout)
 }
