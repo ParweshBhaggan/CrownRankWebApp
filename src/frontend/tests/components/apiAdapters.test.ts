@@ -53,7 +53,10 @@ describe('frontend API adapters', () => {
     await createEntry(draft, 'ui-reference')
     expect(requests.map(request => request.url)).toEqual(['/api/Category', '/api/SocialMediaDefault', '/api/payments/entry-checkout/ui-reference'])
     expect(requests[2].init?.headers).toEqual({ 'content-type': 'application/json', 'X-CrownRank-Client': 'frontend' })
-    expect(JSON.parse(String(requests[2].init?.body))).toEqual({ name: 'Ada Lovelace', amount: 12.5 })
+    expect(JSON.parse(String(requests[2].init?.body))).toEqual({
+      name: 'Ada Lovelace', amount: 12.5,
+      entry: getPendingEntry('ui-reference'),
+    })
     expect(redirectToUrl).toHaveBeenCalledWith('https://checkout.stripe.com/test')
     expect(getPendingEntry('ui-reference')).toEqual({
       name: 'Ada Lovelace', username: 'ada', imgUrl: 'data:image/webp;base64,test', score: 12.5,
@@ -75,21 +78,27 @@ describe('frontend API adapters', () => {
       socialLinks: [], profileImage: new File(['image'], 'avatar.png', { type: 'image/png' }) }
     await expect(createEntry(draft, 'reference')).rejects.toThrow('interrupted')
     await createEntry({ ...draft, name: 'Changed after interruption', contribution: 25 }, 'reference')
-    expect(checkoutBodies).toEqual([{ name: 'Original name', amount: 12.5 }, { name: 'Original name', amount: 12.5 }])
+    expect(checkoutBodies).toHaveLength(2)
+    expect(checkoutBodies[1]).toEqual(checkoutBodies[0])
+    expect(checkoutBodies[0]).toMatchObject({ name: 'Original name', amount: 12.5,
+      entry: { username: 'creator', imgUrl: 'data:image/webp;base64,test' } })
     expect(getPendingEntry('reference')?.imgUrl).toBe('data:image/webp;base64,test')
   })
 
-  it('stops before checkout when browser storage cannot retain the original form', async () => {
+  it('can start checkout when optional browser storage is unavailable', async () => {
     const stored = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('Storage quota') })
     const urls: string[] = []
     globalThis.fetch = async input => {
-      urls.push(String(input))
-      return String(input) === '/api/Category' ? Response.json([{ id: 'science', name: 'Science' }]) : Response.json([])
+      const url = String(input)
+      urls.push(url)
+      if (url === '/api/Category') return Response.json([{ id: 'science', name: 'Science' }])
+      if (url === '/api/SocialMediaDefault') return Response.json([])
+      return Response.json({ id: 'reference', url: 'https://checkout.stripe.com/test', status: 'pending' })
     }
     try {
-      await expect(createEntry({ name: 'Creator', username: 'creator', category: 'science', contribution: 10,
-        socialLinks: [], profileImage: new File(['image'], 'avatar.png', { type: 'image/png' }) }, 'reference')).rejects.toThrow('browser could not save')
-      expect(urls.some(url => url.includes('checkout'))).toBe(false)
+      await createEntry({ name: 'Creator', username: 'creator', category: 'science', contribution: 10,
+        socialLinks: [], profileImage: new File(['image'], 'avatar.png', { type: 'image/png' }) }, 'reference')
+      expect(urls).toContain('/api/payments/entry-checkout/reference')
     } finally { stored.mockRestore() }
   })
 
