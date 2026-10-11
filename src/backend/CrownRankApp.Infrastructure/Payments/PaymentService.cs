@@ -75,7 +75,7 @@ public sealed class PaymentService(ApplicationDbContext context, IEntryServices 
             context.ChangeTracker.Clear();
         }
         if (payment.Name != request.Name.Trim() || payment.Amount != request.Amount || payment.BoostEntryId != boostEntryId
-            || (pendingJson is not null && payment.PendingEntryJson != pendingJson))
+            || (pendingJson is not null && !payment.FulfilledEntryId.HasValue && payment.PendingEntryJson != pendingJson))
         {
             throw new InvalidOperationException("This checkout reference already has different details. Resume the existing checkout.");
         }
@@ -145,6 +145,9 @@ public sealed class PaymentService(ApplicationDbContext context, IEntryServices 
         {
             var created = await entries.CreateAsync(entry);
             payment.FulfilledEntryId = created.Id;
+            // The image is now stored in the published entry. Do not keep a
+            // second full-size copy of the draft in the payments table.
+            payment.PendingEntryJson = null;
             await context.SaveChangesAsync(ct);
             await transaction.CommitAsync(ct);
             return EntryResponseDto.FromEntry(created);
