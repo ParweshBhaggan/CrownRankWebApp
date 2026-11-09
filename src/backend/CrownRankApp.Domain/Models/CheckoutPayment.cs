@@ -80,4 +80,12 @@ public sealed class CheckoutPayment
         get;
         set;
     }
+
+    // Immutable checkout-time snapshot used for webhook-side entry fulfillment.
+    // Never log or return this field: it contains the entry image data URL.
+    public string? PendingEntryJson
+    {
+        get;
+        set;
+    }
 }

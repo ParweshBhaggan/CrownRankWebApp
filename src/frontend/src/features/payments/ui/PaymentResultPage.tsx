@@ -69,7 +69,7 @@ export function PaymentResultPage({ cancelled = false, onConfirmed }: { cancelle
         <>
           <p>{terminal ? 'Your contribution has not been added. You can start a new submission from the leaderboard.'
             : cancelled ? 'Your checkout can still be open. Resume it to finish paying; your ranking updates only after confirmation.'
-            : 'We are checking payment and saving your contribution. Keep this page open until your entry is saved.'}</p>
+            : 'We are checking your payment. Your entry details have already been saved securely for automatic registration.'}</p>
           {payment?.status === 'paid' && <p>Payment received. Your ranking update is still processing.</p>}
           {error && <p role="alert">{error}</p>}
           {error && payment?.status === 'paid' && payment.purpose === 'entry' && getPendingEntry(id) &&

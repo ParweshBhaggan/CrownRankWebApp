@@ -1,3 +1,4 @@
+import type { CreateEntryRequest } from './entry'
 export interface PaymentSettings {
   readonly currency: string
   readonly minimumAmount: number
@@ -6,6 +7,7 @@ export interface PaymentSettings {
 export interface CheckoutRequest {
   readonly name: string
   readonly amount: number
+  readonly entry?: CreateEntryRequest
 }
 export interface CheckoutResponse {
   readonly id: string

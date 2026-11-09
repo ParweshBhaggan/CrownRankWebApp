@@ -152,6 +152,70 @@ static class PaymentChecks
                 }), "Invalid webhook signature is rejected");
         await Reject<InvalidWebhookException>(() => Task.Run(() => new StripePaymentGateway(new StripeClient("sk_test_placeholder"), stripe).VerifyWebhook("{}", "t=1,v1=invalid")),
             "Actual Stripe SDK rejects a forged signature");
+        // The browser can close after redirect: the signed webhook alone publishes
+        // the saved entry with its original WebP data URL and verified score.
+        var durableReference = Guid.NewGuid();
+        var durableEntry = new EntryResponseDto
+        {
+            Name = "Server-side recovery creator",
+            Username = $"durable_{durableReference:N}",
+            ImgUrl = image,
+            Score = 15.50m,
+            Categories = [new CategoryDto { Name = category.Name }],
+            SocialMediaPlatforms = [new SocialMediaPlatformDto
+            {
+                PlatformName = platform.Name,
+                Url = "https://example.com/durable"
+            }]
+        };
+        var durableCheckout = new CheckoutRequest(durableEntry.Name, durableEntry.Score, durableEntry);
+        await With(service => service.StartAsync(durableReference, durableCheckout, null, default));
+        var persistedDraft = await lookup.CheckoutPayments.AsNoTracking().SingleAsync(value => value.Id == durableReference);
+        var storedDraft = persistedDraft.PendingEntryJson is null ? null :
+            System.Text.Json.JsonSerializer.Deserialize<EntryResponseDto>(persistedDraft.PendingEntryJson);
+        Check(storedDraft?.ImgUrl == image && storedDraft.Username == durableEntry.Username
+            && !await lookup.Entries.AnyAsync(value => value.Username == durableEntry.Username),
+            "Complete entry and image are saved before payment, not published before payment");
+
+        var differentEntry = new EntryResponseDto
+        {
+            Name = durableEntry.Name,
+            Username = "changed-username",
+            ImgUrl = image,
+            Score = durableEntry.Score,
+            Categories = durableEntry.Categories,
+            SocialMediaPlatforms = durableEntry.SocialMediaPlatforms
+        };
+        await Reject<InvalidOperationException>(() => With(service => service.StartAsync(durableReference,
+            durableCheckout with { Entry = differentEntry }, null, default)),
+            "Checkout reference rejects a changed pending entry even when amount and name match");
+        gateway.Pay(durableReference);
+        await Task.WhenAll(Enumerable.Range(0, 8).Select(_ => With(async service =>
+        {
+            await service.HandleWebhookAsync(durableReference.ToString(), "signed", default);
+            return true;
+        })));
+        var publishedPayment = await lookup.CheckoutPayments.AsNoTracking().SingleAsync(value => value.Id == durableReference);
+        var durableSaved = await lookup.Entries.AsNoTracking().SingleAsync(value => value.Id == publishedPayment.FulfilledEntryId);
+        Check(durableSaved.Username == durableEntry.Username && durableSaved.Score == 15.50m && durableSaved.ImgUrl == image
+            && await lookup.ScoreAdditions.CountAsync(value => value.EntryId == durableSaved.Id) == 1,
+            "Signed webhook creates the paid entry once without any frontend return");
+        var recovered = await With(service => service.ConfirmAsync(durableReference, default));
+        Check(recovered.Status == "paid" && recovered.Fulfilled && recovered.EntryId == durableSaved.Id,
+            "Later browser confirmation recovers webhook-fulfilled entry");
+
+        // A live checkout must not be able to accept money without the server
+        // holding the form required to fulfill the purchase.
+        await using (var liveContext = new ApplicationDbContext(options))
+        {
+            var liveSettings = new StripeSettings { LiveMode = true };
+            var liveService = new PaymentService(liveContext,
+                new EntryServices(liveContext, TimeProvider.System, settings),
+                gateway, settings, liveSettings, TimeProvider.System);
+            await Reject<ArgumentException>(() => liveService.StartAsync(Guid.NewGuid(), checkout, null, default),
+                "Live creator checkout rejects a missing server-side entry snapshot");
+        }
+
         await ApiChecks.Run(options);
     }
 

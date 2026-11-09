@@ -96,7 +96,7 @@ describe('payment results', () => {
   it('reports a missing form while preserving the verified paid state', async () => {
     vi.mocked(confirmPayment).mockResolvedValue({ id, status: 'paid', fulfilled: false, entryId: null, amount: 10, currency: 'usd', purpose: 'entry' })
     mount()
-    expect(await screen.findByRole('alert')).toHaveTextContent('browser you used for checkout')
+    expect(await screen.findByRole('alert')).toHaveTextContent('saved on the server')
     expect(postEntry).not.toHaveBeenCalled()
     expect(screen.getByText('Payment received. Your ranking update is still processing.')).toBeInTheDocument()
   })
